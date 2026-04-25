@@ -1,7 +1,6 @@
 import uuid
 from typing import AsyncGenerator
 
-import pytest
 import pytest_asyncio
 from geoalchemy2 import WKTElement
 from httpx import ASGITransport, AsyncClient
@@ -10,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from app.config import settings
-from app.db import Base, get_session
+from app.db import get_session
 from app.main import app
 from app.models.poi import POI, POIType, POIStatus
 

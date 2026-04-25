@@ -5,7 +5,7 @@ import uuid
 from geoalchemy2 import WKTElement
 from sqlalchemy import text
 
-from app.db import async_session_factory, engine
+from app.db import async_session_factory
 from app.models.poi import POI, POIType, POIStatus
 
 SEED_POIS = [
