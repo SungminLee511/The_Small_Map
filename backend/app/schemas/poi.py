@@ -88,3 +88,12 @@ class POICreateDuplicateResponse(BaseModel):
     duplicate: bool = True
     existing_poi_id: uuid.UUID
     distance_m: float
+
+
+class POIConfirmResponse(BaseModel):
+    """Returned by POST /api/v1/pois/{id}/confirm (Phase 2.2.7)."""
+
+    poi_id: uuid.UUID
+    verification_count: int
+    verification_status: POIVerificationStatus
+    flipped_to_verified: bool

@@ -20,12 +20,19 @@ from app.models.poi import POIType
 from app.models.user import User
 from app.schemas.poi import (
     BBox,
+    POIConfirmResponse,
     POICreate,
     POICreateDuplicateResponse,
     POIDetail,
     POIListResponse,
 )
 from app.schemas.poi_attributes import validate_attributes
+from app.services.confirmation_service import (
+    AlreadyConfirmed,
+    CannotConfirmOwnSubmission,
+    POINotFound,
+    confirm_poi,
+)
 from app.services.photo_service import (
     canonical_object_key,
     get_claimable_upload,
@@ -208,3 +215,30 @@ async def submit_poi(
         # Should never happen — defensive only.
         raise HTTPException(status_code=500, detail="POI created but vanished")
     return detail
+
+
+@router.post("/pois/{poi_id}/confirm", response_model=POIConfirmResponse)
+async def confirm_existing_poi(
+    poi_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Confirm that a POI exists. Auth required, idempotent per user."""
+    try:
+        result = await confirm_poi(session, poi_id=poi_id, user=user)
+    except POINotFound:
+        raise HTTPException(status_code=404, detail="POI not found")
+    except CannotConfirmOwnSubmission:
+        raise HTTPException(
+            status_code=400, detail="cannot confirm your own submission"
+        )
+    except AlreadyConfirmed:
+        raise HTTPException(status_code=409, detail="already confirmed")
+
+    await session.commit()
+    return POIConfirmResponse(
+        poi_id=result.poi_id,
+        verification_count=result.verification_count,
+        verification_status=result.verification_status,
+        flipped_to_verified=result.flipped_to_verified,
+    )
