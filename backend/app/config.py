@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     importer_csv_dir: str = ""  # if set, importers default to <dir>/<source_id>.csv
     kakao_rest_api_key: str = ""  # for smoking-areas geocoding
 
+    # Auth — cookie config (Phase 2.2.2)
+    auth_cookie_name: str = "smallmap_session"
+    auth_cookie_secure: bool = False  # set True in production (https-only)
+    auth_cookie_samesite: str = "lax"  # or "none" for cross-domain prod
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 

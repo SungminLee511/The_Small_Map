@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.jobs.importer_scheduler import start_scheduler, stop_scheduler
-from app.routers import admin, pois
+from app.routers import admin, auth, pois
 
 
 @asynccontextmanager
@@ -29,6 +29,7 @@ app.add_middleware(
 
 app.include_router(pois.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")
