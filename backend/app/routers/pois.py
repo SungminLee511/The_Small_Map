@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core import r2
 from app.core.rate_limit import RateLimitExceeded, hit as rate_hit
+from app.core.trust import can_submit, is_trusted
 from app.db import get_session
 from app.deps import get_current_user, require_admin
 from app.models.poi import POIType
@@ -122,6 +123,13 @@ async def submit_poi(
     if user.is_banned:
         raise HTTPException(status_code=403, detail="banned")
 
+    # Phase 4.2.2 trust gate — negative reputation = no submit
+    if not can_submit(user.reputation or 0):
+        raise HTTPException(
+            status_code=403,
+            detail="reputation too low to submit; you can still confirm",
+        )
+
     # Rate limit (10/24h) — count this call before the business logic so a
     # burst of failures still consumes budget and discourages spam.
     try:
@@ -179,6 +187,7 @@ async def submit_poi(
             submitted_lng=payload.submitted_gps.lng,
             name=payload.name,
             attributes=validated_attrs,
+            auto_verify=is_trusted(user.reputation or 0),
         )
     except SubmissionGPSTooFarError as e:
         raise HTTPException(

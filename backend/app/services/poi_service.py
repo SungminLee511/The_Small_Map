@@ -142,6 +142,7 @@ async def create_user_submitted_poi(
     submitted_lng: float,
     name: str | None,
     attributes: dict | None,
+    auto_verify: bool = False,
 ) -> POI:
     """Create a new user-submitted POI. Caller must commit.
 
@@ -149,11 +150,19 @@ async def create_user_submitted_poi(
     50m from the claimed location. Caller is responsible for the duplicate
     check via ``find_nearby_duplicate`` so it can return a friendly response
     to the client.
+
+    ``auto_verify=True`` skips the unverified state — used for trusted
+    users (Phase 4.2.2). The submitter still counts as one verification.
     """
     gps_offset = haversine_m(lat, lng, submitted_lat, submitted_lng)
     if gps_offset > SUBMISSION_GPS_TOLERANCE_M:
         raise SubmissionGPSTooFarError(gps_offset)
 
+    verification_status = (
+        POIVerificationStatus.verified
+        if auto_verify
+        else POIVerificationStatus.unverified
+    )
     poi = POI(
         id=uuid.uuid4(),
         poi_type=poi_type,
@@ -162,7 +171,7 @@ async def create_user_submitted_poi(
         attributes=attributes or {},
         source=f"user:{user_id}",
         status=POIStatus.active,
-        verification_status=POIVerificationStatus.unverified,
+        verification_status=verification_status,
         verification_count=1,  # the submitter counts as 1
     )
     session.add(poi)

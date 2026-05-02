@@ -14,6 +14,7 @@ from typing import Sequence
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.trust import should_auto_ban
 from app.models.reputation_event import (
     EVENT_DELTAS,
     ReputationEvent,
@@ -40,6 +41,10 @@ async def append_event(
     )
     session.add(event)
     user.reputation = (user.reputation or 0) + delta
+    # Phase 4.2.2: auto-ban once reputation drops to the threshold.
+    # Idempotent: setting is_banned=True again is harmless.
+    if should_auto_ban(user.reputation):
+        user.is_banned = True
     await session.flush()
     return event
 
