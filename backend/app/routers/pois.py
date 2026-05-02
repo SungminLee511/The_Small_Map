@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core import r2
+from app.core.rate_limit import RateLimitExceeded, hit as rate_hit
 from app.db import get_session
 from app.deps import get_current_user, require_admin
 from app.models.poi import POIType
@@ -120,6 +121,17 @@ async def submit_poi(
     # Reject banned users defensively (get_current_user already filters)
     if user.is_banned:
         raise HTTPException(status_code=403, detail="banned")
+
+    # Rate limit (10/24h) — count this call before the business logic so a
+    # burst of failures still consumes budget and discourages spam.
+    try:
+        rate_hit(user.id, "submit_poi")
+    except RateLimitExceeded as e:
+        raise HTTPException(
+            status_code=429,
+            detail=f"rate limit: {e.action}",
+            headers={"Retry-After": str(e.retry_after)},
+        )
 
     # Validate type-specific attributes
     try:
@@ -228,6 +240,15 @@ async def confirm_existing_poi(
     user: User = Depends(get_current_user),
 ):
     """Confirm that a POI exists. Auth required, idempotent per user."""
+    try:
+        rate_hit(user.id, "confirm_poi")
+    except RateLimitExceeded as e:
+        raise HTTPException(
+            status_code=429,
+            detail=f"rate limit: {e.action}",
+            headers={"Retry-After": str(e.retry_after)},
+        )
+
     try:
         result = await confirm_poi(session, poi_id=poi_id, user=user)
     except POINotFound:
