@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchPOI } from '@/api/pois'
-import { POI_TYPE_ICONS, POI_TYPE_LABELS } from '@/types/poi'
+import { POI_TYPE_LABELS } from '@/types/poi'
+import { TypeIcon } from './TypeIcon'
 import type { POIDetail, POIType } from '@/types/poi'
 
 interface POIDetailPanelProps {
@@ -71,10 +72,8 @@ export function POIDetailPanel({ poiId, onClose }: POIDetailPanelProps) {
 function POIBody({ poi }: { poi: POIDetail }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <span className="text-3xl" aria-hidden="true">
-          {POI_TYPE_ICONS[poi.poi_type]}
-        </span>
+      <div className="flex items-center gap-3">
+        <TypeIcon poi_type={poi.poi_type} size={40} />
         <div>
           <h3 className="text-xl font-bold">
             {poi.name ?? POI_TYPE_LABELS[poi.poi_type]}

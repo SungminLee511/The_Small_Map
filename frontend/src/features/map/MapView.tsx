@@ -1,13 +1,14 @@
 import { useState, useCallback, useRef } from 'react'
-import { Map, MapMarker, useKakaoLoader } from 'react-kakao-maps-sdk'
+import { Map, useKakaoLoader } from 'react-kakao-maps-sdk'
 import { useQuery } from '@tanstack/react-query'
 import { fetchPOIs } from '@/api/pois'
 import { FilterBar } from './FilterBar'
 import { ClusterMarker } from './ClusterMarker'
 import { POIDetailPanel } from './POIDetailPanel'
+import { POIMarker } from './POIMarker'
 import { useClusters } from './useClusters'
 import { usePoiUrlParam } from './usePoiUrlParam'
-import { ALL_POI_TYPES, POI_TYPE_ICONS } from '@/types/poi'
+import { ALL_POI_TYPES } from '@/types/poi'
 import type { POIType, BBox } from '@/types/poi'
 
 // Mapo-gu center
@@ -97,10 +98,9 @@ export function MapView() {
               onClick={() => onClusterClick(c.lat, c.lng)}
             />
           ) : (
-            <MapMarker
+            <POIMarker
               key={c.poi.id}
-              position={{ lat: c.lat, lng: c.lng }}
-              title={c.poi.name || POI_TYPE_ICONS[c.poi.poi_type]}
+              poi={c.poi}
               onClick={() => setSelectedPoiId(c.poi.id)}
             />
           ),
