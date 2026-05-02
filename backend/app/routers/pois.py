@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models.poi import POIType
-from app.schemas.poi import BBox, POIListResponse
-from app.services.poi_service import list_pois_in_bbox
+from app.schemas.poi import BBox, POIDetail, POIListResponse
+from app.services.poi_service import get_poi_by_id, list_pois_in_bbox
 
 router = APIRouter(tags=["pois"])
 
@@ -37,3 +39,14 @@ async def get_pois(
     bbox_obj = BBox(west=west, south=south, east=east, north=north)
     items, truncated = await list_pois_in_bbox(session, bbox_obj, types=type)
     return POIListResponse(items=items, truncated=truncated)
+
+
+@router.get("/pois/{poi_id}", response_model=POIDetail)
+async def get_poi(
+    poi_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    detail = await get_poi_by_id(session, poi_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="POI not found")
+    return detail

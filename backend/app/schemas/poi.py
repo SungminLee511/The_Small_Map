@@ -48,6 +48,14 @@ class POIRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class POIDetail(POIRead):
+    """Full detail view including importer metadata (1.3.7)."""
+
+    external_id: str | None = None
+    last_verified_at: datetime | None = None
+    verification_count: int = 0
+
+
 class POIListResponse(BaseModel):
     items: list[POIRead]
     truncated: bool
