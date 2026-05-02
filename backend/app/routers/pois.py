@@ -5,6 +5,8 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.core import r2
 from app.db import get_session
 from app.deps import get_current_user
 from app.models.poi import POIType
@@ -17,6 +19,11 @@ from app.schemas.poi import (
     POIListResponse,
 )
 from app.schemas.poi_attributes import validate_attributes
+from app.services.photo_service import (
+    canonical_object_key,
+    get_claimable_upload,
+    mark_claimed,
+)
 from app.services.poi_service import (
     SubmissionGPSTooFarError,
     create_user_submitted_poi,
@@ -118,6 +125,18 @@ async def submit_poi(
             },
         )
 
+    # Validate photo upload (if provided) before creating POI
+    upload = None
+    if payload.photo_upload_id is not None:
+        upload = await get_claimable_upload(
+            session, upload_id=payload.photo_upload_id, user_id=user.id
+        )
+        if upload is None:
+            raise HTTPException(
+                status_code=400,
+                detail="photo upload not found, expired, or not yours",
+            )
+
     try:
         poi = await create_user_submitted_poi(
             session,
@@ -135,6 +154,37 @@ async def submit_poi(
             status_code=422,
             detail=f"submitted_gps is {e.distance_m:.1f}m from claimed location (max 50m)",
         )
+
+    # Claim the photo: HEAD it on R2, magic-byte sniff, copy tmp/→photos/.
+    if upload is not None:
+        try:
+            head = r2.head_object(settings, upload.object_key)
+            if head is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="photo bytes not uploaded (R2 HEAD missed)",
+                )
+            size = int(head.get("ContentLength") or 0)
+            if size <= 0 or size > settings.photo_upload_max_bytes:
+                raise HTTPException(
+                    status_code=400, detail="photo too large or empty"
+                )
+
+            new_key = canonical_object_key(upload.id, upload.content_type)
+            r2.copy_object(
+                settings, src_key=upload.object_key, dest_key=new_key
+            )
+            r2.delete_object(settings, upload.object_key)
+            await mark_claimed(
+                session, upload=upload, poi_id=poi.id, new_object_key=new_key
+            )
+            poi.photo_url = r2.public_url_for(settings, new_key)
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(
+                status_code=502, detail=f"photo claim failed: {e}"
+            )
 
     await session.commit()
 

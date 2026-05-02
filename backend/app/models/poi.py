@@ -42,6 +42,7 @@ class POI(Base):
     )
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     attributes: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
+    photo_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     source: Mapped[str] = mapped_column(String(255), nullable=False, default="seed")
     external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_verified_at: Mapped[datetime | None] = mapped_column(

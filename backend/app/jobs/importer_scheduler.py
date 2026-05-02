@@ -105,6 +105,23 @@ def start_scheduler(settings: "Settings") -> None:
             id=f"importer:{imp.source_id}",
             replace_existing=True,
         )
+    # Hourly cleanup of expired pending photo uploads (Phase 2.2.5).
+    from app.jobs.photo_cleanup import run_photo_cleanup
+
+    async def _photo_cleanup_tick() -> None:
+        try:
+            report = await run_photo_cleanup(settings)
+            logger.info("photo_cleanup tick: %s", report)
+        except Exception:  # noqa: BLE001
+            logger.exception("photo_cleanup failed")
+
+    sched.add_job(
+        _photo_cleanup_tick,
+        trigger=CronTrigger(minute=17),
+        id="photo_cleanup",
+        replace_existing=True,
+    )
+
     sched.start()
     _scheduler = sched
     logger.info("Importer scheduler started with %d jobs", len(sched.get_jobs()))

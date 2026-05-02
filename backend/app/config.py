@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = False  # set True in production (https-only)
     auth_cookie_samesite: str = "lax"  # or "none" for cross-domain prod
 
+    # R2 / S3-compatible photo storage (Phase 2.2.5)
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket: str = "smallmap-photos"
+    r2_public_base_url: str = ""  # e.g. https://photos.smallmap.app
+    photo_upload_ttl_seconds: int = 600  # 10-minute presigned PUT
+    photo_upload_max_bytes: int = 8 * 1024 * 1024  # 8 MiB
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
