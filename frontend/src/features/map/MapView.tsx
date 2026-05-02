@@ -1,8 +1,11 @@
 import { useState, useCallback, useRef } from 'react'
 import { Map, useKakaoLoader } from 'react-kakao-maps-sdk'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchPOIs } from '@/api/pois'
 import { AuthHeader } from '@/features/auth/AuthHeader'
+import { useMe } from '@/features/auth/useMe'
+import { SubmitSheet } from '@/features/submit/SubmitSheet'
+import { Plus } from 'lucide-react'
 import { FilterBar } from './FilterBar'
 import { ClusterMarker } from './ClusterMarker'
 import { POIDetailPanel } from './POIDetailPanel'
@@ -26,7 +29,11 @@ export function MapView() {
   const [bbox, setBbox] = useState<BBox | null>(null)
   const [level, setLevel] = useState<number>(DEFAULT_LEVEL)
   const [selectedPoiId, setSelectedPoiId] = usePoiUrlParam()
+  const [submitOpen, setSubmitOpen] = useState(false)
+  const [center, setCenter] = useState(DEFAULT_CENTER)
   const mapRef = useRef<kakao.maps.Map | null>(null)
+  const { data: me } = useMe()
+  const queryClient = useQueryClient()
 
   const updateBboxAndLevel = useCallback(() => {
     const map = mapRef.current
@@ -41,6 +48,8 @@ export function MapView() {
       north: ne.getLat(),
     })
     setLevel(map.getLevel())
+    const c = map.getCenter()
+    setCenter({ lat: c.getLat(), lng: c.getLng() })
   }, [])
 
   const { data } = useQuery({
@@ -118,6 +127,33 @@ export function MapView() {
         poiId={selectedPoiId}
         onClose={() => setSelectedPoiId(null)}
       />
+      {me && !submitOpen && (
+        <button
+          type="button"
+          onClick={() => setSubmitOpen(true)}
+          aria-label="Add a new POI"
+          data-testid="submit-fab"
+          className="fixed bottom-6 right-6 z-20 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-14 h-14 shadow-xl flex items-center justify-center"
+        >
+          <Plus size={28} aria-hidden="true" />
+        </button>
+      )}
+      {submitOpen && (
+        <SubmitSheet
+          initialLocation={center}
+          onClose={() => setSubmitOpen(false)}
+          onCreated={(poiId) => {
+            setSubmitOpen(false)
+            // Refetch the bbox query so the new pin appears
+            queryClient.invalidateQueries({ queryKey: ['pois'] })
+            setSelectedPoiId(poiId)
+          }}
+          onDuplicate={(dup) => {
+            setSubmitOpen(false)
+            setSelectedPoiId(dup.existing_poi_id)
+          }}
+        />
+      )}
     </div>
   )
 }
