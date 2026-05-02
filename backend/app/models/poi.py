@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 
 from geoalchemy2 import Geography
-from sqlalchemy import DateTime, Enum, Index, String, text
+from sqlalchemy import DateTime, Enum, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,6 +38,13 @@ class POI(Base):
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     attributes: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
     source: Mapped[str] = mapped_column(String(255), nullable=False, default="seed")
+    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    verification_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     status: Mapped[str] = mapped_column(
         Enum(POIStatus, name="poi_status_enum", create_constraint=True),
         nullable=False,
@@ -58,4 +65,11 @@ class POI(Base):
     __table_args__ = (
         Index("ix_pois_location", "location", postgresql_using="gist"),
         Index("ix_pois_type_status", "poi_type", "status"),
+        Index(
+            "uq_pois_source_external_id",
+            "source",
+            "external_id",
+            unique=True,
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
     )
