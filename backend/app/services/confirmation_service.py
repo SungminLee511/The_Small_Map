@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.notification import Notification, NotificationType
 from app.models.poi import POI, POIStatus, POIVerificationStatus
 from app.models.poi_confirmation import POIConfirmation
 from app.models.user import User
@@ -96,6 +97,19 @@ async def confirm_poi(
         if submitter is not None and not submitter.is_banned:
             submitter.reputation = (submitter.reputation or 0) + 1
             submitter_delta = 1
+            # Phase 3.3.5: notify submitter when their POI flips verified
+            if flipped:
+                session.add(
+                    Notification(
+                        id=uuid.uuid4(),
+                        user_id=submitter.id,
+                        type=NotificationType.poi_verified,
+                        payload={
+                            "poi_id": str(poi.id),
+                            "verified_at": datetime.now(timezone.utc).isoformat(),
+                        },
+                    )
+                )
 
     return ConfirmResult(
         poi_id=poi.id,
