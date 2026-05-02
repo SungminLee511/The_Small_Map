@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react'
 import { Map, useKakaoLoader } from 'react-kakao-maps-sdk'
 import { useQuery } from '@tanstack/react-query'
 import { fetchPOIs } from '@/api/pois'
+import { AuthHeader } from '@/features/auth/AuthHeader'
 import { FilterBar } from './FilterBar'
 import { ClusterMarker } from './ClusterMarker'
 import { POIDetailPanel } from './POIDetailPanel'
@@ -78,6 +79,7 @@ export function MapView() {
   return (
     <div className="relative w-full h-screen">
       <FilterBar activeTypes={activeTypes} onChange={setActiveTypes} />
+      <AuthHeader />
       <Map
         center={DEFAULT_CENTER}
         level={DEFAULT_LEVEL}
