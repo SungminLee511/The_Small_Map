@@ -936,9 +936,11 @@ data **before** seeding staging.
 - [ ] Patch `backend/app/importers/seoul_public_toilets.py`
       `COL_*` constants until 0 errors. Add a regression fixture
       under `tests/fixtures/seoul_public_toilets/` and a unit test.
-- [ ] Repeat for `seoul.smoking_areas` (data.seoul.go.kr,
-      "흡연구역"). Address-only data → wire `KAKAO_REST_API_KEY` for
-      geocoding; cap rate to ~10 req/s.
+- [x] ~~Repeat for `seoul.smoking_areas`.~~ **Skipped** —
+      not important for v1. Smoking-area POIs will arrive via user
+      submissions (Phase 2) instead. The guessed schema in
+      `seoul_smoking_areas.py` stays in the codebase as a
+      reference but is not on the launch path.
 - [ ] **Verify reprojection:** Korean datasets often ship as
       EPSG:5174 / EPSG:5179. Spot-check a known landmark in QGIS
       after import.
@@ -947,68 +949,126 @@ data **before** seeding staging.
 - [ ] Seed staging DB and confirm **≥100 POIs render** with
       clustering and detail panel (Phase 1.5 acceptance).
 
-## 5b.2 Staging deploy
+## 5b.2 Staging deploy — **Vercel + Supabase + Railway**
 
-Pick **one** of: Fly.io, Railway, or Render. The plan assumes Fly.
+**Locked stack (2026-05-02):**
 
-### 5b.2.1 Postgres + PostGIS
-- [ ] Provision PG16 (Fly: `flyio/postgres-flex`).
-- [ ] `CREATE EXTENSION postgis` post-install.
-- [ ] Run `alembic upgrade head` from a one-off worker.
-- [ ] **Enable daily snapshots** (Phase 5.3) — Fly Volumes
-      snapshot retention ≥ 7 days.
-- [ ] Document the restore procedure in `RUNBOOK.md`.
+| Concern         | Provider                              | Why                                                   |
+|-----------------|---------------------------------------|-------------------------------------------------------|
+| Frontend        | **Vercel**                            | Vite/React-tuned; edge cache fast in KR; free tier    |
+| Postgres+PostGIS| **Supabase**                          | Managed PG16; PostGIS available as a pinned extension |
+| Object storage  | **Supabase Storage**                  | S3-compatible — drop-in for the existing R2 boto3 path |
+| Backend (FastAPI + APScheduler) | **Railway**           | Persistent process needed for APScheduler crons       |
+| CDN / DNS       | Cloudflare in front of Railway        | Custom hostname + WAF + caching on `/api/v1/health`   |
 
-### 5b.2.2 Backend service
-- [ ] Build & push backend Docker image.
-- [ ] Set every env var in `.env.example` to a real value:
-      `DATABASE_URL`, `APP_ENV=production`, `APP_SECRET_KEY`
-      (32 random bytes), `JWT_SECRET` (32 random bytes),
-      `KAKAO_CLIENT_ID/SECRET`, `KAKAO_REDIRECT_URI` (must match
-      Kakao console exactly), `R2_*`, `ADMIN_TOKEN`,
-      `IMPORTER_SCHEDULER_ENABLED=true`, `auth_cookie_secure=true`,
-      `auth_cookie_samesite=none` (cross-domain), `FRONTEND_BASE_URL`.
+**Why not "all on Vercel":** APScheduler runs three crons (importer
+monthly, photo cleanup hourly, report expiry every 15 min) plus
+`BackgroundTasks` for the PIPA blur. Vercel serverless functions die
+between requests, so any of those would silently stop. Railway
+(or Fly/Render) gives a single always-on container — 1 service, $5/mo,
+no rewrite. **If we ever want to drop Railway**, the migration is:
+replace APScheduler with **Supabase pg_cron** calling a Vercel function
+per job + move blur to Inngest/Trigger.dev. Out of scope for v1.
+
+### 5b.2.1 Postgres + PostGIS — Supabase
+
+- [ ] Create a Supabase project on the **Seoul (icn1)** region.
+- [ ] Database → Extensions → enable **`postgis`** (and `pgcrypto` if
+      not already on for `gen_random_uuid()`).
+- [ ] Pull the connection string from Project Settings → Database. Use
+      the **pooled** connection string with port 6543 for the
+      backend (PgBouncer transaction mode) — set `?pgbouncer=true`
+      and disable prepared statements in SQLAlchemy.
+- [ ] Run `alembic upgrade head` from a local shell once
+      against the Supabase URL.
+- [ ] **Daily snapshots** (Phase 5.3): Pro tier auto-snapshots
+      retain 7 days; on the free tier set up a nightly
+      `pg_dump | restic` cron from Railway as a fallback.
+- [ ] Document restore procedure in `RUNBOOK.md`.
+
+### 5b.2.2 Backend service — Railway
+
+- [ ] Connect the GitHub repo; auto-deploys on `main`.
+- [ ] Service settings: rootDir `backend/`, build via the existing
+      Dockerfile, start command `uvicorn app.main:app --host 0.0.0.0
+      --port $PORT`.
+- [ ] Set every env var to a real value:
+      `DATABASE_URL` (Supabase pooled), `APP_ENV=production`,
+      `APP_SECRET_KEY` (32 random bytes), `JWT_SECRET` (32 random
+      bytes), `KAKAO_CLIENT_ID/SECRET`,
+      `KAKAO_REDIRECT_URI` (must match Kakao console exactly),
+      `S3_*` (Supabase Storage credentials — see 5b.2.4),
+      `ADMIN_TOKEN`, `IMPORTER_SCHEDULER_ENABLED=true`,
+      `auth_cookie_secure=true`, `auth_cookie_samesite=none`,
+      `FRONTEND_BASE_URL=https://<vercel-host>`.
 - [ ] Hit `/api/v1/health` and `/api/v1/health/db` from outside.
-- [ ] Confirm `enforce_at_startup` does **not** raise (logs are
-      clean of `startup_security_issue`).
+- [ ] Confirm `enforce_at_startup` does **not** raise (logs are clean
+      of `startup_security_issue`).
+- [ ] Stream Railway logs to Better Stack / Datadog (Phase 5b.5).
 
-### 5b.2.3 Frontend hosting
-- [ ] Cloudflare Pages or Vercel.
-- [ ] Build with `VITE_API_BASE_URL=https://api.<host>/api/v1` and
-      `VITE_KAKAO_MAPS_JS_KEY` from Kakao console.
-- [ ] Add the Pages domain to Kakao console allowed domains
-      list and to the backend CORS allowlist.
+### 5b.2.3 Frontend hosting — Vercel
 
-### 5b.2.4 Object storage (R2)
-- [ ] Create `smallmap-photos` bucket.
-- [ ] Generate scoped API token (read+write on that bucket only).
-- [ ] **Enable bucket versioning** (Phase 5.3).
-- [ ] Add CORS rule allowing PUT from the frontend origin only.
-- [ ] Public read: route `R2_PUBLIC_BASE_URL` through a Cloudflare
-      custom hostname (don't expose the raw `*.r2.cloudflarestorage.com`).
+- [ ] `vercel link` from `frontend/`; auto-deploys on `main`.
+- [ ] Build settings: framework `Vite`, output `dist`.
+- [ ] Env: `VITE_API_BASE_URL=https://<railway-host>/api/v1`,
+      `VITE_KAKAO_MAPS_JS_KEY=<kakao-js-key>`.
+- [ ] Add a custom domain (`app.smallmap.<tld>`) and pin it on the
+      Kakao console allowed-domains list.
+- [ ] Add `https://app.smallmap.<tld>` to the backend CORS allowlist.
+- [ ] Vercel Analytics on; Speed Insights on for Lighthouse drift.
+
+### 5b.2.4 Object storage — Supabase Storage
+
+- [ ] Create bucket `smallmap-photos`. Set `public=false`; we issue
+      time-limited signed URLs.
+- [ ] Generate **two** S3-compatible keypairs in
+      Project Settings → Storage:
+      - one read-only, used by the backend to mint signed download URLs;
+      - one write+head, used by the backend to claim uploads.
+- [ ] Configure the existing boto3 client (`app/core/r2.py`) to point
+      at `https://<project-ref>.storage.supabase.co/storage/v1/s3` with
+      `region_name="ap-northeast-2"` and path-style addressing — the
+      same wrapper works unchanged.
+- [ ] CORS: allow `PUT` from the Vercel origin only.
+- [ ] Public reads: keep the bucket private; serve photos through a
+      backend proxy endpoint that re-signs a 5-min URL. (Avoids leaking
+      the raw Supabase host.)
+- [ ] Bucket versioning is not in Supabase Storage today — instead,
+      enable Storage object lifecycle rules to retain deletes for
+      30 days as soft-delete, and rely on PG snapshot for the
+      `photo_uploads` row history.
 
 ### 5b.2.5 Auth / Kakao OAuth
+
 - [ ] Register the production Kakao app (separate from dev).
-- [ ] Add `https://<frontend>/auth/kakao/callback` to redirect URIs
-      **byte-for-byte** matching `KAKAO_REDIRECT_URI`.
+- [ ] Add `https://<railway-host>/api/v1/auth/kakao/callback` to
+      redirect URIs **byte-for-byte** matching `KAKAO_REDIRECT_URI`.
+- [ ] Add `https://app.smallmap.<tld>` to Kakao allowed sites.
 - [ ] Smoke-test the full flow with a personal Kakao account.
+- [ ] Verify the cookie travels cross-site:
+      `SameSite=None; Secure; HttpOnly`.
 
 ### 5b.2.6 PIPA blur — production detector
+
 - [ ] Replace `NoopDetector` in `app/jobs/photo_blur_task.py` with a
       real face/plate detector (RetinaFace or YOLOv8-face/plate).
 - [ ] Wrap in a tiny wrapper module so the dependency is optional
       (skip-on-missing-import keeps unit tests green).
-- [ ] Run on the GPU-less staging box and benchmark median latency
-      per photo. If > 5 s, move blur to a worker queue (arq + Redis).
+- [ ] Run on the Railway box (no GPU) and benchmark median latency
+      per photo. If > 5 s, move blur to an external queue
+      (Inngest / Trigger.dev) so the FastAPI request stays fast.
 - [ ] Add a regression test: a known face image goes in, the
       output's pixel hash differs at the face bbox.
 
 ### 5b.2.7 CI / CD
-- [ ] GitHub Actions: on tag push, build → run integration tests
-      against a `postgis/postgis:16-3.4` service container →
-      deploy backend + frontend.
-- [ ] Required status checks on `main`: ruff + black + mypy + pytest +
-      eslint + vitest + tsc + Playwright.
+
+- [ ] GitHub Actions on PR: ruff + black + mypy + pytest (with a
+      `postgis/postgis:16-3.4` service container) + eslint + vitest +
+      tsc + Playwright.
+- [ ] Vercel auto-deploys preview + prod.
+- [ ] Railway auto-deploys on push to `main`.
+- [ ] Tag-push triggers a smoke-test job that hits
+      `/api/v1/health/db` on prod after the new container rolls.
 
 ## 5b.3 Real-stack QA (mobile, in-person)
 

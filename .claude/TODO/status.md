@@ -356,10 +356,10 @@ in `implementation_plan.md` § 5b. Headlines:
 - [x] **Mapo-gu coordinate gap surfaced**: 0 of 194 Mapo rows have
       WGS84 coords (subway-station entries), so a Kakao Local geocoder
       is now mandatory for that gu. ~50 % nationwide loss without one.
-- [ ] **Smoking-area importer — schema still guessed.** No real CSV
-      pulled yet (data.go.kr file is login-gated). Repeat the Phase 1.2
-      verification pass for `seoul_smoking_areas` once a snapshot is
-      available; column-name tweaks expected.
+- [x] ~~Smoking-area importer schema verification.~~ **Skipped for v1**
+      — not on the launch path. Smoking-area POIs will arrive via user
+      submissions (Phase 2). The guessed schema in
+      `seoul_smoking_areas.py` stays in the codebase for reference.
 - [ ] **Live run.** Pull a fresh Mapo-gu CSV/XLSX from `data.go.kr`,
       run the toilet importer with a real `KAKAO_REST_API_KEY`, and
       confirm the geocode fallback recovers ≥ 100 of the 194 rows.
@@ -368,21 +368,39 @@ in `implementation_plan.md` § 5b. Headlines:
 - [ ] Seed staging; confirm ≥100 POIs render with clustering + detail
       panel (Phase 1.5 acceptance).
 
-### Staging deploy (Fly.io baseline)
-- [ ] PG16 + PostGIS, `alembic upgrade head`, daily snapshots.
-- [ ] Backend container with real `JWT_SECRET`, `APP_SECRET_KEY`,
-      `KAKAO_*`, `R2_*`, `ADMIN_TOKEN`; `APP_ENV=production`,
-      `auth_cookie_secure=true`, `samesite=none`.
-- [ ] Verify `enforce_at_startup` boots clean (no
-      `startup_security_issue` warnings).
-- [ ] Frontend on Cloudflare Pages with `VITE_API_BASE_URL` and
-      `VITE_KAKAO_MAPS_JS_KEY`.
-- [ ] R2 bucket + scoped token + versioning + custom hostname.
-- [ ] Production Kakao OAuth app; redirect URI byte-exact match.
+### Staging deploy — **Vercel + Supabase + Railway**
+Locked stack (2026-05-02): Vercel (frontend), Supabase (PG16+PostGIS,
+storage), Railway (FastAPI + APScheduler always-on container).
+APScheduler needs a persistent process so we keep one container on
+Railway rather than rewriting the cron paths to Vercel functions.
+
+- [ ] **Supabase**: project in Seoul region, enable `postgis`
+      extension, pull pooled (port 6543) `DATABASE_URL`, run
+      `alembic upgrade head`, document restore in `RUNBOOK.md`.
+      Pro tier auto-snapshots 7d (or `pg_dump | restic` cron).
+- [ ] **Railway**: connect repo, rootDir `backend/`, Dockerfile
+      build. Real env vars: `JWT_SECRET`, `APP_SECRET_KEY`,
+      `KAKAO_*`, `S3_*` (Supabase Storage creds), `ADMIN_TOKEN`,
+      `APP_ENV=production`, `auth_cookie_secure=true`,
+      `samesite=none`, `FRONTEND_BASE_URL`. Verify
+      `enforce_at_startup` is clean.
+- [ ] **Vercel**: link `frontend/`, framework Vite. Env
+      `VITE_API_BASE_URL`, `VITE_KAKAO_MAPS_JS_KEY`. Custom domain
+      (`app.smallmap.<tld>`) registered with Kakao + backend CORS.
+- [ ] **Supabase Storage**: bucket `smallmap-photos`, two
+      S3-compatible keypairs (read-only / write+head), CORS PUT from
+      Vercel origin only, photos served via a backend proxy that
+      mints 5-min signed URLs. Boto3 endpoint
+      `https://<ref>.storage.supabase.co/storage/v1/s3`.
+- [ ] **Production Kakao OAuth app** with redirect URI byte-exact;
+      Vercel domain in allowed sites.
 - [ ] Swap `NoopDetector` → real RetinaFace / YOLO face+plate
-      detector; add regression test (face bbox pixel hash differs).
-- [ ] CI: integration tests run against PostGIS service container;
-      tag-push deploys.
+      detector; benchmark on Railway (no GPU); if > 5 s, move blur
+      to Inngest/Trigger.dev. Regression test: known face image →
+      pixel hash differs at bbox.
+- [ ] **CI**: PR runs ruff/black/mypy/pytest+postgis/eslint/vitest/
+      tsc/Playwright. Vercel + Railway auto-deploy on `main`.
+      Tag-push smoke-tests `/api/v1/health/db` after rollout.
 
 ### Real-stack QA (mobile, in person)
 - [ ] Kakao login on mobile Safari + Chrome Android.
