@@ -1,10 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { kakaoAuthorizeUrl } from '@/api/auth'
-import { fetchMyConfirmations, fetchMySubmissions } from '@/api/me'
+import {
+  fetchMyConfirmations,
+  fetchMyReputationEvents,
+  fetchMySubmissions,
+} from '@/api/me'
 import { useMe } from '@/features/auth/useMe'
 import { POI_TYPE_LABELS } from '@/types/poi'
 import { TypeIcon } from '@/features/map/TypeIcon'
 import type { POIDetail } from '@/types/poi'
+import { Badges } from './Badges'
+import { ReputationGraph } from './ReputationGraph'
 
 /** Server-rendered-via-CSR /me page: submissions, confirmations, reputation. */
 export function ProfilePage() {
@@ -20,6 +26,12 @@ export function ProfilePage() {
   const confirmationsQ = useQuery({
     queryKey: ['me', 'confirmations'],
     queryFn: fetchMyConfirmations,
+    enabled: !!me,
+    staleTime: 30_000,
+  })
+  const repEventsQ = useQuery({
+    queryKey: ['me', 'reputation'],
+    queryFn: fetchMyReputationEvents,
     enabled: !!me,
     staleTime: 30_000,
   })
@@ -76,6 +88,22 @@ export function ProfilePage() {
           <div className="text-xs text-gray-500">평판</div>
         </div>
       </header>
+
+      <section className="mt-6" data-testid="profile-rep-history">
+        <h2 className="text-lg font-semibold mb-2">평판 추이</h2>
+        <div className="bg-white border border-gray-200 rounded-lg px-3 py-3">
+          <ReputationGraph events={repEventsQ.data ?? []} />
+        </div>
+      </section>
+
+      <section className="mt-6" data-testid="profile-badges">
+        <h2 className="text-lg font-semibold mb-2">배지</h2>
+        <Badges
+          me={me}
+          submissions={submissionsQ.data ?? []}
+          confirmations={confirmationsQ.data ?? []}
+        />
+      </section>
 
       <Section
         title="내가 등록한 장소"

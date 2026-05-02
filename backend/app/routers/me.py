@@ -1,9 +1,13 @@
-"""Profile endpoints for the logged-in user (Phase 2.3.4)."""
+"""Profile endpoints for the logged-in user (Phase 2.3.4 + 4.3.2)."""
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query
 from geoalchemy2.functions import ST_X, ST_Y
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,10 +15,22 @@ from app.db import get_session
 from app.deps import get_current_user
 from app.models.poi import POI, POIStatus
 from app.models.poi_confirmation import POIConfirmation
+from app.models.reputation_event import ReputationEventType
 from app.models.user import User
 from app.schemas.poi import LatLng, POIDetail
+from app.services.reputation_service import reputation_history
 
 router = APIRouter(prefix="/me", tags=["me"])
+
+
+class ReputationEventRead(BaseModel):
+    id: uuid.UUID
+    event_type: ReputationEventType
+    delta: int
+    ref_id: uuid.UUID | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 @router.get("/submissions", response_model=list[POIDetail])
@@ -116,3 +132,14 @@ async def list_my_confirmations(
         )
         for r in rows
     ]
+
+
+@router.get("/reputation", response_model=list[ReputationEventRead])
+async def list_my_reputation_events(
+    limit: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Phase 4.3.2 — append-only reputation ledger for the current user."""
+    rows = await reputation_history(session, user_id=user.id, limit=limit)
+    return [ReputationEventRead.model_validate(r) for r in rows]
