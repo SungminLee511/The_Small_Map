@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { BBox, POIListResponse, POIType } from '@/types/poi'
+import type { BBox, POIDetail, POIListResponse, POIType } from '@/types/poi'
 
 export async function fetchPOIs(bbox: BBox, types?: POIType[]): Promise<POIListResponse> {
   const bboxStr = `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`
@@ -8,5 +8,10 @@ export async function fetchPOIs(bbox: BBox, types?: POIType[]): Promise<POIListR
     params.type = types
   }
   const { data } = await apiClient.get<POIListResponse>('/pois', { params })
+  return data
+}
+
+export async function fetchPOI(id: string): Promise<POIDetail> {
+  const { data } = await apiClient.get<POIDetail>(`/pois/${id}`)
   return data
 }

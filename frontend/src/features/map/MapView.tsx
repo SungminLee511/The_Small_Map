@@ -4,7 +4,9 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchPOIs } from '@/api/pois'
 import { FilterBar } from './FilterBar'
 import { ClusterMarker } from './ClusterMarker'
+import { POIDetailPanel } from './POIDetailPanel'
 import { useClusters } from './useClusters'
+import { usePoiUrlParam } from './usePoiUrlParam'
 import { ALL_POI_TYPES, POI_TYPE_ICONS } from '@/types/poi'
 import type { POIType, BBox } from '@/types/poi'
 
@@ -20,6 +22,7 @@ export function MapView() {
   const [activeTypes, setActiveTypes] = useState<POIType[]>([...ALL_POI_TYPES])
   const [bbox, setBbox] = useState<BBox | null>(null)
   const [level, setLevel] = useState<number>(DEFAULT_LEVEL)
+  const [selectedPoiId, setSelectedPoiId] = usePoiUrlParam()
   const mapRef = useRef<kakao.maps.Map | null>(null)
 
   const updateBboxAndLevel = useCallback(() => {
@@ -98,6 +101,7 @@ export function MapView() {
               key={c.poi.id}
               position={{ lat: c.lat, lng: c.lng }}
               title={c.poi.name || POI_TYPE_ICONS[c.poi.poi_type]}
+              onClick={() => setSelectedPoiId(c.poi.id)}
             />
           ),
         )}
@@ -107,6 +111,10 @@ export function MapView() {
           Too many results. Zoom in for more detail.
         </div>
       )}
+      <POIDetailPanel
+        poiId={selectedPoiId}
+        onClose={() => setSelectedPoiId(null)}
+      />
     </div>
   )
 }

@@ -17,6 +17,12 @@ export interface POI {
   updated_at: string
 }
 
+export interface POIDetail extends POI {
+  external_id: string | null
+  last_verified_at: string | null
+  verification_count: number
+}
+
 export interface POIListResponse {
   items: POI[]
   truncated: boolean
