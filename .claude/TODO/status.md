@@ -93,4 +93,52 @@ See git log for details. Frontend 8/8, backend 7/7 tests, CI green.
 
 Next: pull a real Mapo-gu toilet CSV → adjust importer schemas if
 needed → seed staging DB → verify ≥100 POIs render with clustering and
-detail panel. Then move to **Phase 2** (user accounts + submissions).
+detail panel.
+
+## Phase 2 (User accounts and submissions) — backend complete
+
+### 2.2 Backend tasks
+- [x] **2.2.1** User model + migration `d2b3c4e5f6a7` (kakao_id BIGINT
+      unique, display_name, email, avatar_url, reputation, is_admin,
+      is_banned, last_seen_at).
+- [x] **2.2.2** Kakao OAuth — `core/jwt_tokens.py` + `core/kakao_oauth.py`
+      + auth router (`/auth/kakao/authorize`, `/auth/kakao/callback`,
+      `/auth/me`, `/auth/logout`). HttpOnly session cookie via JWT.
+- [x] **2.2.3** Auth dependencies — `get_current_user_optional`,
+      `get_current_user`, `require_admin`. Banned users filtered to None.
+- [x] **2.2.4** `POST /api/v1/pois` — submission with GPS check (50m),
+      duplicate check (10m), per-type attribute validation, source =
+      `user:<uuid>`, verification_status enum (migration `e3c4d5f6a7b8`).
+- [x] **2.2.5** Photo presigned uploads — `photo_uploads` table
+      (migration `f4d5e6a7b8c9`), `core/r2.py` (boto3 S3-compat),
+      `POST /api/v1/uploads/photo-presign`. Claim path on POI submit:
+      HEAD R2, copy tmp/→photos/, mark claimed. Hourly cleanup job.
+- [x] **2.2.6** PIPA blur — Pillow GaussianBlur background task
+      (`jobs/photo_blur_task.blur_photo_for_poi`). EXIF stripped on
+      output. NoopDetector default; production swaps in real
+      RetinaFace/YOLO. `pois.photo_processed_at` (migration `a5b6c7d8e9f0`).
+- [x] **2.2.7** `POST /pois/{id}/confirm` — `poi_confirmations` table
+      (migration `b6c7d8e9f0a1`), idempotent via PK on
+      (poi_id,user_id), verification threshold = 3 (submitter + 2),
+      flips status to verified, bumps submitter reputation.
+- [x] **2.2.8** Admin moderation — `deleted_at`, `deletion_reason`,
+      `deleted_by_user_id` on pois (migration `c7d8e9f0a1b2`). New
+      endpoints: `DELETE /pois/{id}`, `GET /admin/pois`,
+      `POST /admin/pois/{id}/approve`, `POST /admin/pois/{id}/reject`.
+      All gated by `require_admin` (users.is_admin).
+- [x] **2.2.9** Rate limits — `core/rate_limit.InMemoryRateLimiter`,
+      sliding window per (user, action). Defaults: submit_poi=10/24h,
+      confirm_poi=50/24h. 429 with Retry-After header.
+- [x] **2.2.10** Test sweep — auth flow, submission validation,
+      confirmation idempotency + threshold transition, admin gate +
+      moderation, rate limit triggers 429. **106/106 unit tests pass
+      locally.** Integration tests run against PostGIS in CI.
+
+### 2.3 Frontend tasks — NOT STARTED
+- [ ] 2.3.1 Auth flow (login button, /me, logout)
+- [ ] 2.3.2 Submit flow (5 steps: type, GPS, photo, attrs, review)
+- [ ] 2.3.3 Visual distinction for unverified POIs
+- [ ] 2.3.4 Profile page (/me)
+- [ ] 2.3.5 e2e (full submit + confirm flow)
+
+Next: **Phase 2.3** frontend, then real Kakao OAuth wiring on staging.

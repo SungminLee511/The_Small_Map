@@ -22,25 +22,41 @@ test_session_factory = async_sessionmaker(
 )
 
 
+_TABLES = (
+    "poi_confirmations",
+    "photo_uploads",
+    "pois",
+    "users",
+)
+
+
+async def _truncate_all() -> None:
+    async with test_engine.begin() as conn:
+        await conn.execute(
+            text(
+                f"TRUNCATE {', '.join(_TABLES)} RESTART IDENTITY CASCADE"
+            )
+        )
+
+
 @pytest_asyncio.fixture(scope="session")
 async def setup_db():
-    """Ensure tables exist (created by alembic). Just truncate on teardown."""
+    """Ensure PostGIS is on and tables are clean. Tables themselves are
+    created by Alembic before the test run (see CI workflow)."""
     async with test_engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
-        await conn.execute(text("TRUNCATE pois"))
+    await _truncate_all()
     yield
-    async with test_engine.begin() as conn:
-        await conn.execute(text("TRUNCATE pois"))
+    await _truncate_all()
     await test_engine.dispose()
 
 
 @pytest_asyncio.fixture
 async def db_session(setup_db) -> AsyncGenerator[AsyncSession, None]:
-    """Per-test session — truncate pois after each test."""
+    """Per-test session — truncate every Phase-2 table after each test."""
     async with test_session_factory() as session:
         yield session
-    async with test_engine.begin() as conn:
-        await conn.execute(text("TRUNCATE pois"))
+    await _truncate_all()
 
 
 @pytest_asyncio.fixture
@@ -75,3 +91,64 @@ def make_poi(
         status=POIStatus.active,
         attributes={},
     )
+
+
+# --- Phase 2 helpers ------------------------------------------------------
+
+
+async def _make_user(
+    db_session: AsyncSession, *, kakao_id: int, is_admin: bool = False
+):
+    from app.models.user import User
+
+    user = User(
+        id=uuid.uuid4(),
+        kakao_id=kakao_id,
+        display_name=f"User {kakao_id}",
+        email=None,
+        avatar_url=None,
+        reputation=0,
+        is_admin=is_admin,
+        is_banned=False,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    return user
+
+
+def _auth_cookie_for(user_id) -> dict[str, str]:
+    """Mint a session cookie for a test user."""
+    from app.core.jwt_tokens import issue_session_token
+
+    return {settings.auth_cookie_name: issue_session_token(user_id)}
+
+
+@pytest_asyncio.fixture
+async def make_user(db_session: AsyncSession):
+    counter = {"i": 100_000}
+
+    async def _factory(*, is_admin: bool = False):
+        counter["i"] += 1
+        return await _make_user(db_session, kakao_id=counter["i"], is_admin=is_admin)
+
+    return _factory
+
+
+@pytest_asyncio.fixture
+async def auth_cookie():
+    """Returns a callable: auth_cookie(user) -> dict cookies."""
+
+    def _build(user):
+        return _auth_cookie_for(user.id)
+
+    return _build
+
+
+@pytest_asyncio.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Each test gets a fresh in-memory rate limiter."""
+    from app.core.rate_limit import get_limiter
+
+    get_limiter().reset()
+    yield
+    get_limiter().reset()
