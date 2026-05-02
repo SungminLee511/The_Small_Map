@@ -13,14 +13,21 @@ export interface POI {
   attributes: Record<string, unknown> | null
   source: string
   status: string
+  verification_status?: 'unverified' | 'verified'
+  /** Phase 3.3.3 — count of active issue reports */
+  active_report_count?: number
   created_at: string
   updated_at: string
 }
+
+import type { Report } from './report'
 
 export interface POIDetail extends POI {
   external_id: string | null
   last_verified_at: string | null
   verification_count: number
+  /** Phase 3.3.3 — most-recent active reports (max 5) */
+  active_reports?: Report[]
 }
 
 export interface POIListResponse {

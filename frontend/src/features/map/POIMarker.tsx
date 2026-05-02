@@ -30,6 +30,7 @@ export function POIMarker({ poi, onClick }: POIMarkerProps) {
         data-poi-id={poi.id}
         data-poi-type={poi.poi_type}
         data-verification-status={poi.verification_status ?? 'verified'}
+        data-active-report-count={poi.active_report_count ?? 0}
         className={`relative cursor-pointer hover:scale-110 transition ${
           isUnverified ? 'opacity-80' : ''
         }`}
@@ -49,6 +50,15 @@ export function POIMarker({ poi, onClick }: POIMarkerProps) {
             className="absolute -top-1 -right-1 bg-yellow-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-white"
           >
             ?
+          </span>
+        )}
+        {(poi.active_report_count ?? 0) > 0 && (
+          <span
+            aria-label={`${poi.active_report_count} active reports`}
+            data-testid="poi-report-badge"
+            className="absolute -top-1 -left-1 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-4 h-4 px-1 flex items-center justify-center border border-white"
+          >
+            {(poi.active_report_count ?? 0) > 9 ? '9+' : poi.active_report_count}
           </span>
         )}
       </button>
