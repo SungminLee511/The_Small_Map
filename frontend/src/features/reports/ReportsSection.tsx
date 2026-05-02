@@ -5,6 +5,7 @@ import { useMe } from '@/features/auth/useMe'
 import { REPORT_TYPE_ICONS, REPORT_TYPE_LABELS } from '@/types/report'
 import type { Report } from '@/types/report'
 import type { POIDetail } from '@/types/poi'
+import { ReportResolveModal } from './ReportResolveModal'
 import { ReportSubmitModal } from './ReportSubmitModal'
 
 interface ReportsSectionProps {
@@ -84,6 +85,7 @@ export function ReportsSection({ poi }: ReportsSectionProps) {
 function ReportRow({ report, poiId }: { report: Report; poiId: string }) {
   const { data: me } = useMe()
   const qc = useQueryClient()
+  const [resolveOpen, setResolveOpen] = useState(false)
   const confirmMut = useMutation({
     mutationFn: () => confirmReport(report.id),
     onSuccess: () => {
@@ -129,16 +131,35 @@ function ReportRow({ report, poiId }: { report: Report; poiId: string }) {
             {timeAgo(report.created_at)} · 확인 {report.confirmation_count}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => confirmMut.mutate()}
-          disabled={confirmDisabled}
-          data-testid="confirm-report-button"
-          className="text-xs font-semibold px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {confirmLabel}
-        </button>
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={() => confirmMut.mutate()}
+            disabled={confirmDisabled}
+            data-testid="confirm-report-button"
+            className="text-xs font-semibold px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {confirmLabel}
+          </button>
+          {me && (
+            <button
+              type="button"
+              onClick={() => setResolveOpen(true)}
+              data-testid="open-resolve-modal-button"
+              className="text-xs font-medium px-2 py-1 rounded-md bg-green-600 text-white hover:bg-green-700"
+            >
+              해결
+            </button>
+          )}
+        </div>
       </div>
+      {resolveOpen && (
+        <ReportResolveModal
+          report={report}
+          poiId={poiId}
+          onClose={() => setResolveOpen(false)}
+        />
+      )}
     </li>
   )
 }
