@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.jwt_tokens import (
-    decode_session_token,
     issue_session_token,
     make_oauth_state,
 )
@@ -20,8 +19,10 @@ from app.core.kakao_oauth import (
     fetch_profile,
 )
 from app.db import get_session
+from app.deps import get_current_user
+from app.models.user import User
 from app.schemas.user import UserMe
-from app.services.user_service import get_user_by_id, upsert_kakao_user
+from app.services.user_service import upsert_kakao_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -131,30 +132,8 @@ async def kakao_callback(
 
 
 @router.get("/me", response_model=UserMe)
-async def get_me(
-    smallmap_session: str | None = Cookie(None, alias=None),
-    request: Request = None,  # type: ignore[assignment]
-    session: AsyncSession = Depends(get_session),
-) -> UserMe:
-    """Return the currently logged-in user, or 401 if no/invalid cookie.
-
-    NB: ``Cookie`` arg name uses the configured cookie name at request time,
-    so we read it from ``request.cookies`` directly instead of a fixed
-    parameter. The function arg is kept for FastAPI signature compat.
-    """
-    raw = request.cookies.get(settings.auth_cookie_name) if request else None
-    if not raw:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated"
-        )
-    user_id = decode_session_token(raw)
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token"
-        )
-    user = await get_user_by_id(session, user_id)
-    if user is None or user.is_banned:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="user not found")
+async def get_me(user: User = Depends(get_current_user)) -> UserMe:
+    """Return the currently logged-in user, or 401 if no/invalid cookie."""
     return UserMe.model_validate(user)
 
 
