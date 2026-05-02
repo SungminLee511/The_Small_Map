@@ -1,5 +1,7 @@
 import { kakaoAuthorizeUrl } from '@/api/auth'
 import { NotificationsBell } from '@/features/notifications/NotificationsBell'
+import { useT } from '@/i18n/I18nProvider'
+import { LanguageToggle } from '@/i18n/LanguageToggle'
 import { useLogout, useMe } from './useMe'
 
 /**
@@ -10,6 +12,7 @@ import { useLogout, useMe } from './useMe'
 export function AuthHeader() {
   const { data: me, isLoading } = useMe()
   const logoutMut = useLogout()
+  const t = useT()
 
   if (isLoading) {
     return (
@@ -25,15 +28,16 @@ export function AuthHeader() {
   if (!me) {
     return (
       <div
-        className="absolute top-4 right-4 z-20"
+        className="absolute top-4 right-4 z-20 flex items-center gap-2"
         data-testid="auth-header"
       >
+        <LanguageToggle />
         <a
           href={kakaoAuthorizeUrl()}
           className="inline-flex items-center gap-2 bg-yellow-300 hover:bg-yellow-400 text-gray-900 px-3 py-1.5 rounded-lg shadow-md text-sm font-semibold"
           data-testid="auth-login-button"
         >
-          카카오로 로그인
+          {t('auth.loginKakao')}
         </a>
       </div>
     )
@@ -44,6 +48,7 @@ export function AuthHeader() {
       className="absolute top-4 right-4 z-20 flex items-center gap-2 text-sm"
       data-testid="auth-header"
     >
+      <LanguageToggle />
       <NotificationsBell />
       <div className="bg-white/90 backdrop-blur rounded-lg px-3 py-1.5 shadow-md flex items-center gap-2">
       {me.avatar_url ? (
@@ -68,7 +73,7 @@ export function AuthHeader() {
       >
         {me.display_name}
       </a>
-      <span className="text-xs text-gray-500" title="평판">
+      <span className="text-xs text-gray-500" title={t('auth.reputation')}>
         ⭐ {me.reputation}
       </span>
       <button
@@ -78,7 +83,7 @@ export function AuthHeader() {
         className="text-xs text-gray-500 hover:text-red-600 hover:underline ml-1 disabled:opacity-50"
         data-testid="auth-logout-button"
       >
-        로그아웃
+        {t('auth.logout')}
       </button>
       </div>
     </div>
