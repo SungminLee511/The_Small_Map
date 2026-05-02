@@ -23,6 +23,9 @@ test_session_factory = async_sessionmaker(
 
 
 _TABLES = (
+    "notifications",
+    "report_confirmations",
+    "reports",
     "poi_confirmations",
     "photo_uploads",
     "pois",

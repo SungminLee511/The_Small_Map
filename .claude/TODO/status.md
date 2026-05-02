@@ -166,6 +166,40 @@ Acceptance items still gated on infrastructure:
 - [ ] Real face/plate detector swapped in for `NoopDetector`.
 - [ ] Submitting from a real mobile device with GPS + camera.
 
+## Phase 3 (Status reports) — backend complete
+
+### 3.3 Backend
+- [x] **3.3.1** Report endpoints + models — `Report`,
+      `ReportConfirmation`, `Notification` (migration `d8e9f0a1b2c3`).
+      `POST /pois/{id}/reports`, `GET /pois/{id}/reports`,
+      `GET /reports?bbox=`, `POST /reports/{id}/confirm/resolve/dismiss`.
+      Rate limits: submit_report=5/24h, confirm_report=50/24h.
+- [x] **3.3.2** Auto-expiry — `expire_due_reports` flips active rows
+      whose `expires_at < now`; AsyncIOScheduler runs it every 15 min
+      (`*/15`). Emits `report_expired` notifications to reporters.
+- [x] **3.3.3** POI list/detail — `POIRead.active_report_count`
+      bulk-loaded by `active_report_counts_for_pois`; `POIDetail`
+      adds `active_reports` (max 5 most recent).
+- [x] **3.3.4** Resolution rules — reporter can self-resolve anytime;
+      others must wait 24h (`ResolutionTooEarly` → 403 + Retry-After).
+      Admin can dismiss via `POST /reports/{id}/dismiss`. Resolver
+      ≠ reporter triggers `report_resolved` notification.
+- [x] **3.3.5** Notifications — `services/notification_service` +
+      `routers/notifications`: `GET /notifications?only_unread=&limit=`,
+      `GET /notifications/unread-count`, `POST /notifications/{id}/read`,
+      `POST /notifications/read-all`. `confirm_poi` emits a
+      `poi_verified` notification on threshold flip.
+- [x] **3.3.6** Tests — 6 new unit tests (schemas, constants);
+      3 new integration files: `test_reports_endpoints.py`,
+      `test_report_expiry_job.py`, `test_notifications_endpoints.py`.
+      **112/112 unit tests pass locally.**
+
+### 3.4 Frontend — NOT STARTED
+- [ ] 3.4.1 Report submission modal
+- [ ] 3.4.2 Map badges + reports section in detail panel
+- [ ] 3.4.3 Resolve flow UI
+- [ ] 3.4.4 Notifications bell + dropdown
+- [ ] 3.4.5 e2e tests
+
 Next: pull a real Mapo-gu CSV (Phase 1.2 follow-up), wire Kakao
-keys + R2 on staging, then move to **Phase 3** (status reports —
-the differentiator).
+keys + R2 on staging, then **Phase 3.4** frontend.
