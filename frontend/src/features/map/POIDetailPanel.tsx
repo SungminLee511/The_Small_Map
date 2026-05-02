@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { fetchPOI } from '@/api/pois'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { confirmPOI, fetchPOI } from '@/api/pois'
+import { useMe } from '@/features/auth/useMe'
 import { POI_TYPE_LABELS } from '@/types/poi'
 import { TypeIcon } from './TypeIcon'
 import type { POIDetail, POIType } from '@/types/poi'
@@ -69,17 +70,83 @@ export function POIDetailPanel({ poiId, onClose }: POIDetailPanelProps) {
   )
 }
 
+function ConfirmButton({ poi }: { poi: POIDetail }) {
+  const { data: me } = useMe()
+  const qc = useQueryClient()
+  const mut = useMutation({
+    mutationFn: () => confirmPOI(poi.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['poi', poi.id] })
+      qc.invalidateQueries({ queryKey: ['pois'] })
+    },
+  })
+  if (!me) return null
+  // Hide if it's the user's own submission (server would reject anyway)
+  if (poi.source === `user:${me.id}`) return null
+  // Only show for unverified — verified POIs don't need user attestation
+  if (poi.verification_status !== 'unverified') return null
+
+  const errStatus = (
+    mut.error as { response?: { status?: number } } | null
+  )?.response?.status
+  const errMsg =
+    errStatus === 409
+      ? '이미 확인하셨습니다.'
+      : errStatus === 400
+        ? '본인 제출은 확인할 수 없습니다.'
+        : errStatus === 429
+          ? '하루 확인 한도를 초과했습니다.'
+          : mut.error
+            ? '확인 실패'
+            : null
+
+  return (
+    <div className="pt-3 border-t border-gray-100">
+      <button
+        type="button"
+        onClick={() => mut.mutate()}
+        disabled={mut.isPending || mut.isSuccess}
+        data-testid="confirm-poi-button"
+        className="w-full px-3 py-2 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+      >
+        {mut.isSuccess ? '확인됨!' : mut.isPending ? '확인 중…' : '여기 있어요 (확인)'}
+      </button>
+      {errMsg && (
+        <p className="text-xs text-red-600 mt-1" role="alert">
+          {errMsg}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function POIBody({ poi }: { poi: POIDetail }) {
+  const isUnverified = poi.verification_status === 'unverified'
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
         <TypeIcon poi_type={poi.poi_type} size={40} />
-        <div>
+        <div className="flex-1">
           <h3 className="text-xl font-bold">
             {poi.name ?? POI_TYPE_LABELS[poi.poi_type]}
           </h3>
           <p className="text-sm text-gray-500">{POI_TYPE_LABELS[poi.poi_type]}</p>
         </div>
+        {isUnverified ? (
+          <span
+            className="text-xs font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-800"
+            data-testid="poi-unverified-badge"
+          >
+            미확인
+          </span>
+        ) : (
+          <span
+            className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-800"
+            data-testid="poi-verified-badge"
+          >
+            확인됨
+          </span>
+        )}
       </div>
 
       <Attributes poi_type={poi.poi_type} attrs={poi.attributes ?? {}} />
@@ -100,6 +167,8 @@ function POIBody({ poi }: { poi: POIDetail }) {
           <dd className="text-right">{sourceLabel(poi.source)}</dd>
         </div>
       </dl>
+
+      <ConfirmButton poi={poi} />
     </div>
   )
 }

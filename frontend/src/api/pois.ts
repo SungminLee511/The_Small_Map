@@ -15,3 +15,15 @@ export async function fetchPOI(id: string): Promise<POIDetail> {
   const { data } = await apiClient.get<POIDetail>(`/pois/${id}`)
   return data
 }
+
+export interface ConfirmResponse {
+  poi_id: string
+  verification_count: number
+  verification_status: 'unverified' | 'verified'
+  flipped_to_verified: boolean
+}
+
+export async function confirmPOI(id: string): Promise<ConfirmResponse> {
+  const { data } = await apiClient.post<ConfirmResponse>(`/pois/${id}/confirm`)
+  return data
+}
