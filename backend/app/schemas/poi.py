@@ -43,6 +43,8 @@ class POIRead(BaseModel):
     source: str
     status: POIStatus
     verification_status: POIVerificationStatus = POIVerificationStatus.verified
+    # Phase 3.3.3 — surfaced on the bbox endpoint so the map can draw badges
+    active_report_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -55,6 +57,10 @@ class POIDetail(POIRead):
     external_id: str | None = None
     last_verified_at: datetime | None = None
     verification_count: int = 0
+    # Phase 3.3.3 — recent active reports so the panel can list them inline.
+    # Avoid a forward-reference to ReportRead by typing as list[dict] here;
+    # the router serializes ReportRead instances into dicts before returning.
+    active_reports: list[dict] = []
 
 
 class POIListResponse(BaseModel):

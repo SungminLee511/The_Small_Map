@@ -77,6 +77,12 @@ async def list_pois_in_bbox(
     truncated = len(rows) > limit
     rows = rows[:limit]
 
+    # Phase 3.3.3: bulk-load active report counts and merge in.
+    from app.services.report_service import active_report_counts_for_pois
+
+    counts = await active_report_counts_for_pois(
+        session, [row.id for row in rows]
+    )
     items = [
         POIRead(
             id=row.id,
@@ -87,6 +93,7 @@ async def list_pois_in_bbox(
             source=row.source,
             status=row.status,
             verification_status=row.verification_status,
+            active_report_count=counts.get(row.id, 0),
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -189,6 +196,19 @@ async def get_poi_by_id(
     row = (await session.execute(stmt)).first()
     if row is None:
         return None
+    # Phase 3.3.3 — attach active report count and recent active reports
+    from app.schemas.report import ReportRead
+    from app.services.report_service import (
+        active_report_count_for_poi,
+        recent_active_reports_for_poi,
+    )
+
+    report_count = await active_report_count_for_poi(session, row.id)
+    recent = await recent_active_reports_for_poi(session, row.id, limit=5)
+    active_reports_payload = [
+        ReportRead.model_validate(r).model_dump(mode="json") for r in recent
+    ]
+
     return POIDetail(
         id=row.id,
         poi_type=row.poi_type,
@@ -201,6 +221,8 @@ async def get_poi_by_id(
         external_id=row.external_id,
         last_verified_at=row.last_verified_at,
         verification_count=row.verification_count,
+        active_report_count=report_count,
+        active_reports=active_reports_payload,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
