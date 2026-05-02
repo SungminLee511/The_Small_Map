@@ -16,6 +16,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.geo import haversine_m
+from app.core.staleness import compute_is_stale
 from app.models.poi import POI, POIStatus, POIType, POIVerificationStatus
 from app.schemas.poi import BBox, LatLng, POIDetail, POIRead
 
@@ -56,6 +57,7 @@ async def list_pois_in_bbox(
             POI.source,
             POI.status,
             POI.verification_status,
+            POI.last_verified_at,
             POI.created_at,
             POI.updated_at,
             ST_Y(func.geometry(POI.location)).label("lat"),
@@ -94,6 +96,10 @@ async def list_pois_in_bbox(
             status=row.status,
             verification_status=row.verification_status,
             active_report_count=counts.get(row.id, 0),
+            is_stale=compute_is_stale(
+                last_verified_at=row.last_verified_at,
+                has_active_report=counts.get(row.id, 0) > 0,
+            ),
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -232,6 +238,10 @@ async def get_poi_by_id(
         verification_count=row.verification_count,
         active_report_count=report_count,
         active_reports=active_reports_payload,
+        is_stale=compute_is_stale(
+            last_verified_at=row.last_verified_at,
+            has_active_report=report_count > 0,
+        ),
         created_at=row.created_at,
         updated_at=row.updated_at,
     )

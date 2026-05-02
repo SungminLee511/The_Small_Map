@@ -45,6 +45,9 @@ class POIRead(BaseModel):
     verification_status: POIVerificationStatus = POIVerificationStatus.verified
     # Phase 3.3.3 — surfaced on the bbox endpoint so the map can draw badges
     active_report_count: int = 0
+    # Phase 4.2.3 — computed flag: last_verified_at > 180d ago and no
+    # active reports. UI prompts nearby users to re-confirm.
+    is_stale: bool = False
     created_at: datetime
     updated_at: datetime
 
