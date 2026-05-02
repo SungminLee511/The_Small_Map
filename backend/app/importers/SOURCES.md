@@ -1,12 +1,16 @@
 # Importer Data Sources
 
-> ✅ **Phase 1.2 schema verification complete (2026-05-02).**
-> The toilet schema below was verified against the
-> 전국공중화장실표준데이터 snapshot dated **2024-02-18** (32 columns,
-> 6 089 rows nationwide, 194 in Mapo-gu). The smoking-area schema is
-> still an educated guess — the data.go.kr file is login-gated and we
-> have not yet pulled a real snapshot. When that happens, expect
-> `seoul_smoking_areas.py` to need adjustments.
+> ✅ **Toilet schema: locked (2026-05-02).** The
+> 전국공중화장실표준데이터 is **government standard data** — column
+> names and shape are fixed across all snapshots and all gu by 행정안전부
+> spec. Verified against the 2024-02-18 snapshot (32 cols, 6 089 rows
+> nationwide, 194 in Mapo-gu). New toilet datasets that don't follow
+> the standard belong in a **new** `BaseImporter` subclass with its own
+> `source_id` — not a tweak of this one.
+>
+> ⚠️ **Smoking-area schema: still guessed.** The data.go.kr file is
+> login-gated and we have not yet pulled a real snapshot. Expect
+> `seoul_smoking_areas.py` to need adjustment when that happens.
 
 This document maps the public datasets used by Phase 1 importers to the
 internal `POI` model. **Verify the URLs and schemas at the time of import** —
