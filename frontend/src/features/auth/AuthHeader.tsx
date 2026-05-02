@@ -1,4 +1,5 @@
 import { kakaoAuthorizeUrl } from '@/api/auth'
+import { NotificationsBell } from '@/features/notifications/NotificationsBell'
 import { useLogout, useMe } from './useMe'
 
 /**
@@ -40,9 +41,11 @@ export function AuthHeader() {
 
   return (
     <div
-      className="absolute top-4 right-4 z-20 bg-white/90 backdrop-blur rounded-lg px-3 py-1.5 shadow-md flex items-center gap-2 text-sm"
+      className="absolute top-4 right-4 z-20 flex items-center gap-2 text-sm"
       data-testid="auth-header"
     >
+      <NotificationsBell />
+      <div className="bg-white/90 backdrop-blur rounded-lg px-3 py-1.5 shadow-md flex items-center gap-2">
       {me.avatar_url ? (
         <img
           src={me.avatar_url}
@@ -77,6 +80,7 @@ export function AuthHeader() {
       >
         로그아웃
       </button>
+      </div>
     </div>
   )
 }
