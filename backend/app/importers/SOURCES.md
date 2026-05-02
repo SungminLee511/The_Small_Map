@@ -1,5 +1,14 @@
 # Importer Data Sources
 
+> ⚠️ **GUESSED SCHEMAS — Phase 1.2 detailed verification was skipped (option a).**
+> The Korean column names below (e.g. `화장실관리번호`, `WGS84위도`,
+> `흡연시설형태`) are **educated guesses** based on the data.go.kr
+> standard-data documentation. They have NOT been verified against an
+> actual downloaded CSV/JSON response. When the first real fetch happens,
+> expect to tweak the `COL_*` constants in
+> `seoul_public_toilets.py` and `seoul_smoking_areas.py`. Skipped rows
+> will surface in `ImportReport.errors`.
+
 This document maps the public datasets used by Phase 1 importers to the
 internal `POI` model. **Verify the URLs and schemas at the time of import** —
 Korean public data portals change column names and formats frequently.
