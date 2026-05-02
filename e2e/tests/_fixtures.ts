@@ -71,6 +71,17 @@ export interface StubOptions {
     fields: Record<string, string>
     expires_at: string
   }
+  /** Pre-seeded notifications + unread count. */
+  notifications?: {
+    list?: Array<{
+      id: string
+      type: string
+      payload: Record<string, unknown>
+      read_at: string | null
+      created_at: string
+    }>
+    unread?: number
+  }
 }
 
 export async function stubBackendAndKakao(
@@ -179,6 +190,124 @@ export async function stubBackendAndKakao(
       contentType: 'application/json',
       body: JSON.stringify(r.body),
     })
+  })
+
+  // POST /pois/{id}/reports
+  await page.route(`${API_BASE}/pois/*/reports`, async (route) => {
+    if (route.request().method() === 'POST') {
+      const id =
+        route.request().url().match(/\/pois\/([^/]+)\/reports/)?.[1] ?? ''
+      const body = route.request().postDataJSON() as {
+        report_type: string
+        description: string | null
+      }
+      const now = new Date().toISOString()
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'rrrrrrrr-rrrr-rrrr-rrrr-rrrrrrrrrrrr',
+          poi_id: id,
+          reporter_id: FAKE_USER.id,
+          report_type: body.report_type,
+          description: body.description,
+          photo_url: null,
+          status: 'active',
+          confirmation_count: 0,
+          resolved_at: null,
+          resolved_by: null,
+          resolution_note: null,
+          expires_at: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      })
+      return
+    }
+    // GET — empty list by default
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{"items":[],"truncated":false}',
+    })
+  })
+
+  // POST /reports/{id}/confirm | resolve | dismiss
+  await page.route(`${API_BASE}/reports/*/confirm`, async (route) => {
+    const id =
+      route.request().url().match(/\/reports\/([^/]+)\/confirm/)?.[1] ?? ''
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ report_id: id, confirmation_count: 1 }),
+    })
+  })
+  await page.route(`${API_BASE}/reports/*/resolve`, async (route) => {
+    const id =
+      route.request().url().match(/\/reports\/([^/]+)\/resolve/)?.[1] ?? ''
+    const body = route.request().postDataJSON() as {
+      resolution_note: string
+    }
+    const now = new Date().toISOString()
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id,
+        poi_id: 'p-1',
+        reporter_id: FAKE_USER.id,
+        report_type: 'dirty',
+        description: null,
+        photo_url: null,
+        status: 'resolved',
+        confirmation_count: 0,
+        resolved_at: now,
+        resolved_by: FAKE_USER.id,
+        resolution_note: body.resolution_note,
+        expires_at: now,
+        created_at: now,
+        updated_at: now,
+      }),
+    })
+  })
+
+  // Notifications
+  await page.route(`${API_BASE}/notifications/unread-count`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ unread: options.notifications?.unread ?? 0 }),
+    })
+  })
+  await page.route(
+    `${API_BASE}/notifications/read-all`,
+    async (route) => await route.fulfill({ status: 204, body: '' }),
+  )
+  await page.route(`${API_BASE}/notifications/*/read`, async (route) => {
+    const id = route.request().url().split('/').slice(-2)[0]
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id,
+        type: 'report_resolved',
+        payload: {},
+        read_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      }),
+    })
+  })
+  await page.route(`${API_BASE}/notifications**`, async (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname.endsWith('/notifications')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(options.notifications?.list ?? []),
+      })
+      return
+    }
+    await route.continue()
   })
 
   // Photo presign + the actual R2 PUT URL

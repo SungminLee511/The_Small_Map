@@ -194,12 +194,33 @@ Acceptance items still gated on infrastructure:
       `test_report_expiry_job.py`, `test_notifications_endpoints.py`.
       **112/112 unit tests pass locally.**
 
-### 3.4 Frontend — NOT STARTED
-- [ ] 3.4.1 Report submission modal
-- [ ] 3.4.2 Map badges + reports section in detail panel
-- [ ] 3.4.3 Resolve flow UI
-- [ ] 3.4.4 Notifications bell + dropdown
-- [ ] 3.4.5 e2e tests
+### 3.4 Frontend — COMPLETE
+- [x] **3.4.1** Report modal — `ReportSubmitModal` with 7-icon
+      grid, optional 500-char description, red-themed submit. Maps
+      401/404/429 to friendly Korean errors.
+- [x] **3.4.2** Map badges + reports section — POIMarker shows
+      a red count badge ("9+" cap) when `active_report_count > 0`.
+      Detail panel renders `ReportsSection` with preloaded
+      `active_reports` (initialData), per-row "저도 봤어요" /
+      "내 신고" / "이미 확인" buttons.
+- [x] **3.4.3** Resolve flow — `ReportResolveModal` (required
+      note + optional photo URL). Server 403 with Retry-After
+      surfaces the 24h non-reporter rule in human-readable form.
+- [x] **3.4.4** Notifications bell — `NotificationsBell` in the
+      logged-in header. Polls unread-count every 60s, lazy-loads
+      the list on open, click-to-mark-read pushes `?poi=<id>`.
+      "모두 읽음" calls mark-all-read.
+- [x] **3.4.5** Playwright e2e — `reports.spec.ts` covers
+      submission flow + bell visibility/badge/click behaviour.
+      Fixtures extended with report + notification mocks.
+
+## Phase 3 — DONE in code
+
+Acceptance items still gated on infrastructure + manual QA:
+- [ ] Live deploy with real backend running the 15-min cron.
+- [ ] Mobile-device QA: report → badge → resolve → badge gone.
+- [ ] Spam-rate-limit observation in production.
 
 Next: pull a real Mapo-gu CSV (Phase 1.2 follow-up), wire Kakao
-keys + R2 on staging, then **Phase 3.4** frontend.
+keys + R2 on staging, then move to **Phase 4** (trust, decay,
+polish).
