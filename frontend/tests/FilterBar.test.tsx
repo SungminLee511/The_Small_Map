@@ -34,19 +34,37 @@ describe('FilterBar', () => {
     expect(called).toContain('bench')
   })
 
-  it('toggle all button deselects when all selected', () => {
+  it('"전체" quick toggle selects every type', () => {
+    const onChange = vi.fn()
+    render(<FilterBar activeTypes={['bench']} onChange={onChange} />)
+    fireEvent.click(screen.getByText('전체'))
+    expect(onChange).toHaveBeenCalledWith([...ALL_POI_TYPES])
+  })
+
+  it('"없음" quick toggle clears every type', () => {
     const onChange = vi.fn()
     render(<FilterBar activeTypes={[...ALL_POI_TYPES]} onChange={onChange} />)
-
-    fireEvent.click(screen.getByText('전체 해제'))
+    fireEvent.click(screen.getByText('없음'))
     expect(onChange).toHaveBeenCalledWith([])
   })
 
-  it('toggle all button selects all when none selected', () => {
-    const onChange = vi.fn()
-    render(<FilterBar activeTypes={[]} onChange={onChange} />)
+  it('"전체" disabled when all selected', () => {
+    render(<FilterBar activeTypes={[...ALL_POI_TYPES]} onChange={vi.fn()} />)
+    expect((screen.getByText('전체') as HTMLButtonElement).disabled).toBe(true)
+  })
 
-    fireEvent.click(screen.getByText('전체 선택'))
-    expect(onChange).toHaveBeenCalledWith([...ALL_POI_TYPES])
+  it('"없음" disabled when none selected', () => {
+    render(<FilterBar activeTypes={[]} onChange={vi.fn()} />)
+    expect((screen.getByText('없음') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('aria-pressed reflects active state', () => {
+    render(<FilterBar activeTypes={['toilet']} onChange={vi.fn()} />)
+    expect(
+      screen.getByTestId('filter-toilet').getAttribute('aria-pressed'),
+    ).toBe('true')
+    expect(
+      screen.getByTestId('filter-bench').getAttribute('aria-pressed'),
+    ).toBe('false')
   })
 })

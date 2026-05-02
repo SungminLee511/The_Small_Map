@@ -8,8 +8,9 @@ import { POIDetailPanel } from './POIDetailPanel'
 import { POIMarker } from './POIMarker'
 import { useClusters } from './useClusters'
 import { usePoiUrlParam } from './usePoiUrlParam'
+import { useTypesUrlParam } from './useTypesUrlParam'
 import { ALL_POI_TYPES } from '@/types/poi'
-import type { POIType, BBox } from '@/types/poi'
+import type { BBox } from '@/types/poi'
 
 // Mapo-gu center
 const DEFAULT_CENTER = { lat: 37.5535, lng: 126.9215 }
@@ -20,7 +21,7 @@ export function MapView() {
     appkey: import.meta.env.VITE_KAKAO_MAPS_JS_KEY || '',
   })
 
-  const [activeTypes, setActiveTypes] = useState<POIType[]>([...ALL_POI_TYPES])
+  const [activeTypes, setActiveTypes] = useTypesUrlParam()
   const [bbox, setBbox] = useState<BBox | null>(null)
   const [level, setLevel] = useState<number>(DEFAULT_LEVEL)
   const [selectedPoiId, setSelectedPoiId] = usePoiUrlParam()
