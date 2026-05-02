@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.jobs.importer_scheduler import start_scheduler, stop_scheduler
-from app.routers import admin, auth, me, pois, uploads
+from app.routers import admin, auth, me, pois, reports, uploads
 
 
 @asynccontextmanager
@@ -32,6 +32,7 @@ app.include_router(admin.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(uploads.router, prefix="/api/v1")
 app.include_router(me.router, prefix="/api/v1")
+app.include_router(reports.router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")

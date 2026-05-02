@@ -37,6 +37,10 @@ class RateLimitExceeded(Exception):
 DEFAULT_LIMITS: dict[str, RateLimit] = {
     "submit_poi": RateLimit(max_calls=10, window_seconds=24 * 3600),
     "confirm_poi": RateLimit(max_calls=50, window_seconds=24 * 3600),
+    # Phase 3 — keep report submission tighter than POI submission since
+    # spam reports are easy to file.
+    "submit_report": RateLimit(max_calls=5, window_seconds=24 * 3600),
+    "confirm_report": RateLimit(max_calls=50, window_seconds=24 * 3600),
 }
 
 
