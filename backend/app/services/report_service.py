@@ -19,7 +19,10 @@ from app.models.report import (
     ReportStatus,
     ReportType,
 )
+from app.models.reputation_event import ReputationEventType
+from app.models.user import User
 from app.schemas.poi import BBox
+from app.services.reputation_service import append_event
 
 REPORT_TTL_DAYS = 7
 RESOLVE_OTHER_DELAY_HOURS = 24
@@ -171,7 +174,9 @@ async def resolve_report(
     if photo_url is not None:
         report.photo_url = photo_url
 
-    # Notify the original reporter (unless they resolved their own)
+    # Notify the original reporter (unless they resolved their own) and
+    # award +2 reputation to the reporter — their report was useful enough
+    # that someone else acted on it.
     if report.reporter_id != user_id:
         session.add(
             Notification(
@@ -186,6 +191,18 @@ async def resolve_report(
                 },
             )
         )
+        reporter = (
+            await session.execute(
+                select(User).where(User.id == report.reporter_id)
+            )
+        ).scalar_one_or_none()
+        if reporter is not None and not reporter.is_banned:
+            await append_event(
+                session,
+                user=reporter,
+                event_type=ReputationEventType.report_submitted_resolved,
+                ref_id=report.id,
+            )
     return report
 
 
@@ -202,6 +219,20 @@ async def dismiss_report(
     report.resolved_by = admin_id
     if reason:
         report.resolution_note = reason[:500]
+
+    # Phase 4.2.1: -5 reputation event to the reporter for an admin dismissal
+    reporter = (
+        await session.execute(
+            select(User).where(User.id == report.reporter_id)
+        )
+    ).scalar_one_or_none()
+    if reporter is not None:
+        await append_event(
+            session,
+            user=reporter,
+            event_type=ReputationEventType.report_dismissed_admin,
+            ref_id=report.id,
+        )
     return report
 
 

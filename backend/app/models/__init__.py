@@ -3,6 +3,7 @@ from app.models.photo_upload import PhotoUpload
 from app.models.poi import POI
 from app.models.poi_confirmation import POIConfirmation
 from app.models.report import Report, ReportConfirmation
+from app.models.reputation_event import ReputationEvent
 from app.models.user import User
 
 __all__ = [
@@ -12,5 +13,6 @@ __all__ = [
     "POIConfirmation",
     "Report",
     "ReportConfirmation",
+    "ReputationEvent",
     "User",
 ]

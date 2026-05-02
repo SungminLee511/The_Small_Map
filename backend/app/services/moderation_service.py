@@ -10,7 +10,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.poi import POI, POIStatus, POIVerificationStatus
+from app.models.reputation_event import ReputationEventType
+from app.models.user import User
 from app.schemas.poi import LatLng, POIDetail
+from app.services.reputation_service import append_event
 
 
 class POINotFound(Exception):
@@ -24,18 +27,48 @@ async def soft_delete_poi(
     admin_user_id: uuid.UUID,
     reason: str | None,
 ) -> POI:
-    """Soft-delete a POI (status='removed' + audit columns)."""
+    """Soft-delete a POI (status='removed' + audit columns).
+
+    If the POI was a user submission still in unverified state at deletion
+    time, the submitter takes a ``poi_submitted_rejected`` reputation hit
+    (Phase 4.2.1).
+    """
     poi = (
         await session.execute(select(POI).where(POI.id == poi_id))
     ).scalar_one_or_none()
     if poi is None:
         raise POINotFound(str(poi_id))
+
+    was_unverified = poi.verification_status == POIVerificationStatus.unverified
+    submitter_id = _submitter_id_from_source(poi.source)
+
     poi.status = POIStatus.removed
     poi.deleted_at = datetime.now(timezone.utc)
     poi.deletion_reason = (reason or "")[:500] or None
     poi.deleted_by_user_id = admin_user_id
     await session.flush()
+
+    if was_unverified and submitter_id is not None:
+        submitter = (
+            await session.execute(select(User).where(User.id == submitter_id))
+        ).scalar_one_or_none()
+        if submitter is not None:
+            await append_event(
+                session,
+                user=submitter,
+                event_type=ReputationEventType.poi_submitted_rejected,
+                ref_id=poi.id,
+            )
     return poi
+
+
+def _submitter_id_from_source(source: str) -> uuid.UUID | None:
+    if not source.startswith("user:"):
+        return None
+    try:
+        return uuid.UUID(source.split(":", 1)[1])
+    except (ValueError, TypeError):
+        return None
 
 
 async def approve_poi(

@@ -19,7 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.notification import Notification, NotificationType
 from app.models.poi import POI, POIStatus, POIVerificationStatus
 from app.models.poi_confirmation import POIConfirmation
+from app.models.reputation_event import ReputationEventType
 from app.models.user import User
+from app.services.reputation_service import append_event
 
 VERIFICATION_THRESHOLD = 3  # submitter + 2 confirmers
 
@@ -95,10 +97,23 @@ async def confirm_poi(
             )
         ).scalar_one_or_none()
         if submitter is not None and not submitter.is_banned:
-            submitter.reputation = (submitter.reputation or 0) + 1
+            # +1 confirmation event to the submitter
+            await append_event(
+                session,
+                user=submitter,
+                event_type=ReputationEventType.confirmation,
+                ref_id=poi.id,
+            )
             submitter_delta = 1
             # Phase 3.3.5: notify submitter when their POI flips verified
             if flipped:
+                # Phase 4.2.1: +5 reputation event for the verification
+                await append_event(
+                    session,
+                    user=submitter,
+                    event_type=ReputationEventType.poi_submitted_verified,
+                    ref_id=poi.id,
+                )
                 session.add(
                     Notification(
                         id=uuid.uuid4(),
