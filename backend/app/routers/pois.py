@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core import r2
 from app.db import get_session
-from app.deps import get_current_user
+from app.deps import get_current_user, require_admin
 from app.models.poi import POIType
 from app.models.user import User
 from app.schemas.poi import (
@@ -32,6 +32,10 @@ from app.services.confirmation_service import (
     CannotConfirmOwnSubmission,
     POINotFound,
     confirm_poi,
+)
+from app.services.moderation_service import (
+    POINotFound as POINotFoundForDelete,
+    soft_delete_poi,
 )
 from app.services.photo_service import (
     canonical_object_key,
@@ -242,3 +246,22 @@ async def confirm_existing_poi(
         verification_status=result.verification_status,
         flipped_to_verified=result.flipped_to_verified,
     )
+
+
+@router.delete(
+    "/pois/{poi_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def admin_delete_poi(
+    poi_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+    reason: str | None = Query(None, description="Reason recorded on the POI"),
+):
+    """Admin-only soft delete (Phase 2.2.8)."""
+    try:
+        await soft_delete_poi(
+            session, poi_id=poi_id, admin_user_id=admin.id, reason=reason
+        )
+    except POINotFoundForDelete:
+        raise HTTPException(status_code=404, detail="POI not found")
+    await session.commit()
