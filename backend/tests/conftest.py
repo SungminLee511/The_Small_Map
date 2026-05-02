@@ -28,6 +28,8 @@ _TABLES = (
     "reports",
     "poi_confirmations",
     "photo_uploads",
+    "poi_removal_proposals",
+    "reputation_events",
     "pois",
     "users",
 )

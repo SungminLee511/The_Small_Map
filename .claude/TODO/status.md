@@ -221,6 +221,44 @@ Acceptance items still gated on infrastructure + manual QA:
 - [ ] Mobile-device QA: report → badge → resolve → badge gone.
 - [ ] Spam-rate-limit observation in production.
 
+## Phase 4 (Trust, decay, polish) — backend complete
+
+### 4.2 Backend
+- [x] **4.2.1** Reputation event ledger — `ReputationEvent` model +
+      `EVENT_DELTAS` (verified=+5, rejected=-3, confirmation=+1,
+      report_resolved=+2, dismissed=-5). Migration `e9f0a1b2c3d4`.
+      All direct mutations of `users.reputation` replaced with
+      `append_event` calls in confirmation_service / report_service /
+      moderation_service.
+- [x] **4.2.2** Trust gating — `core/trust.py` constants
+      (NO_SUBMIT=0, AUTO_BAN=-10, TRUSTED=50). `append_event`
+      auto-flips `is_banned=True` at the threshold. POST /pois
+      returns 403 below 0; trusted users get auto-verified
+      submissions via the new `auto_verify` arg on
+      `create_user_submitted_poi`.
+- [x] **4.2.3** Stale flag — `core/staleness.compute_is_stale`
+      (last_verified_at > 180d AND no active reports). Inlined
+      into `list_pois_in_bbox` and `get_poi_by_id`. New
+      `is_stale` field on POIRead + POIDetail.
+- [x] **4.2.4** Removal proposals — `POIRemovalProposal` model
+      (composite PK; table created in 4.2.1 migration).
+      `services/removal_service.propose_removal` validates,
+      idempotent per (poi, user), auto-soft-deletes at threshold
+      3. New `POST /api/v1/pois/{id}/propose-removal` (auth +
+      rate-limited 10/24h).
+- [x] **4.2.5** Tests — 3 unit files (trust thresholds,
+      staleness math, reputation deltas), 3 integration files
+      (`test_reputation_flow.py`, `test_removal_proposals.py`,
+      `test_staleness_endpoint.py`). **127/127 unit tests pass
+      locally.**
+
+### 4.3 Frontend — NOT STARTED
+- [ ] 4.3.1 Stale POI prompts in detail panel
+- [ ] 4.3.2 Profile page polish (rep history graph + badges)
+- [ ] 4.3.3 i18n (Korean + English)
+- [ ] 4.3.4 About / Privacy / Terms static pages
+- [ ] 4.3.5 Polish (skeletons, empty states, error boundary,
+      mobile-first, Lighthouse, favicon, OG, SEO)
+
 Next: pull a real Mapo-gu CSV (Phase 1.2 follow-up), wire Kakao
-keys + R2 on staging, then move to **Phase 4** (trust, decay,
-polish).
+keys + R2 on staging, then **Phase 4.3** frontend.
