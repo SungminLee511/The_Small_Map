@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -87,6 +94,7 @@ async def get_poi(
 )
 async def submit_poi(
     payload: POICreate,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
@@ -187,6 +195,13 @@ async def submit_poi(
             )
 
     await session.commit()
+
+    # Schedule PIPA blur as a background task. Idempotent and self-contained
+    # so a failure here doesn't block the response.
+    if upload is not None:
+        from app.jobs.photo_blur_task import blur_photo_for_poi
+
+        background_tasks.add_task(blur_photo_for_poi, poi.id, settings)
 
     detail = await get_poi_by_id(session, poi.id)
     if detail is None:
