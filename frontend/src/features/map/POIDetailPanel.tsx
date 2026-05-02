@@ -4,6 +4,7 @@ import { confirmPOI, fetchPOI } from '@/api/pois'
 import { useMe } from '@/features/auth/useMe'
 import { ReportsSection } from '@/features/reports/ReportsSection'
 import { POI_TYPE_LABELS } from '@/types/poi'
+import { StalePrompt } from './StalePrompt'
 import { TypeIcon } from './TypeIcon'
 import type { POIDetail, POIType } from '@/types/poi'
 
@@ -169,6 +170,7 @@ function POIBody({ poi }: { poi: POIDetail }) {
         </div>
       </dl>
 
+      <StalePrompt poi={poi} />
       <ConfirmButton poi={poi} />
       <ReportsSection poi={poi} />
     </div>

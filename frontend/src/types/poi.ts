@@ -16,6 +16,8 @@ export interface POI {
   verification_status?: 'unverified' | 'verified'
   /** Phase 3.3.3 — count of active issue reports */
   active_report_count?: number
+  /** Phase 4.2.3 — last_verified_at > 180d ago and no active reports */
+  is_stale?: boolean
   created_at: string
   updated_at: string
 }
