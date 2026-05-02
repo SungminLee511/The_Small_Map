@@ -106,3 +106,16 @@ class POIConfirmResponse(BaseModel):
     verification_count: int
     verification_status: POIVerificationStatus
     flipped_to_verified: bool
+
+
+class POIRemovalProposalBody(BaseModel):
+    """Phase 4.2.4 — POST /pois/{id}/propose-removal request body."""
+
+    reason: str | None = Field(None, max_length=500)
+
+
+class POIRemovalProposalResponse(BaseModel):
+    poi_id: uuid.UUID
+    proposal_count: int
+    threshold: int
+    soft_deleted: bool

@@ -41,6 +41,9 @@ DEFAULT_LIMITS: dict[str, RateLimit] = {
     # spam reports are easy to file.
     "submit_report": RateLimit(max_calls=5, window_seconds=24 * 3600),
     "confirm_report": RateLimit(max_calls=50, window_seconds=24 * 3600),
+    # Phase 4.2.4 — removal proposals; rate-limit harshly since 3 of these
+    # auto-delete a POI.
+    "propose_removal": RateLimit(max_calls=10, window_seconds=24 * 3600),
 }
 
 

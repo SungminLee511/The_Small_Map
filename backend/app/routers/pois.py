@@ -27,6 +27,8 @@ from app.schemas.poi import (
     POICreateDuplicateResponse,
     POIDetail,
     POIListResponse,
+    POIRemovalProposalBody,
+    POIRemovalProposalResponse,
 )
 from app.schemas.poi_attributes import validate_attributes
 from app.services.confirmation_service import (
@@ -38,6 +40,13 @@ from app.services.confirmation_service import (
 from app.services.moderation_service import (
     POINotFound as POINotFoundForDelete,
     soft_delete_poi,
+)
+from app.services.removal_service import (
+    REMOVAL_THRESHOLD,
+    AlreadyProposed,
+    CannotProposeOwnSubmission,
+    POINotFound as POINotFoundForRemoval,
+    propose_removal,
 )
 from app.services.photo_service import (
     canonical_object_key,
@@ -275,6 +284,63 @@ async def confirm_existing_poi(
         verification_count=result.verification_count,
         verification_status=result.verification_status,
         flipped_to_verified=result.flipped_to_verified,
+    )
+
+
+@router.post(
+    "/pois/{poi_id}/propose-removal",
+    response_model=POIRemovalProposalResponse,
+)
+async def propose_poi_removal(
+    poi_id: uuid.UUID,
+    body: POIRemovalProposalBody,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Mark a POI as no-longer-existing (Phase 4.2.4).
+
+    Three independent proposals auto-soft-delete the POI. Idempotent
+    per (poi, user). Banned and below-zero-rep users blocked.
+    """
+    if user.is_banned:
+        raise HTTPException(status_code=403, detail="banned")
+    if not can_submit(user.reputation or 0):
+        raise HTTPException(
+            status_code=403,
+            detail="reputation too low to propose removal",
+        )
+
+    try:
+        rate_hit(user.id, "propose_removal")
+    except RateLimitExceeded as e:
+        raise HTTPException(
+            status_code=429,
+            detail=f"rate limit: {e.action}",
+            headers={"Retry-After": str(e.retry_after)},
+        )
+
+    try:
+        result = await propose_removal(
+            session,
+            poi_id=poi_id,
+            user_id=user.id,
+            reason=body.reason,
+        )
+    except POINotFoundForRemoval:
+        raise HTTPException(status_code=404, detail="POI not found")
+    except CannotProposeOwnSubmission:
+        raise HTTPException(
+            status_code=400,
+            detail="cannot propose removal of your own submission",
+        )
+    except AlreadyProposed:
+        raise HTTPException(status_code=409, detail="already proposed")
+    await session.commit()
+    return POIRemovalProposalResponse(
+        poi_id=result.poi_id,
+        proposal_count=result.proposal_count,
+        threshold=REMOVAL_THRESHOLD,
+        soft_deleted=result.soft_deleted,
     )
 
 
