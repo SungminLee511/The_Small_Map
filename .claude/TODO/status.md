@@ -134,11 +134,38 @@ detail panel.
       moderation, rate limit triggers 429. **106/106 unit tests pass
       locally.** Integration tests run against PostGIS in CI.
 
-### 2.3 Frontend tasks — NOT STARTED
-- [ ] 2.3.1 Auth flow (login button, /me, logout)
-- [ ] 2.3.2 Submit flow (5 steps: type, GPS, photo, attrs, review)
-- [ ] 2.3.3 Visual distinction for unverified POIs
-- [ ] 2.3.4 Profile page (/me)
-- [ ] 2.3.5 e2e (full submit + confirm flow)
+### 2.3 Frontend tasks — COMPLETE
+- [x] **2.3.1** Auth flow — `apiClient.withCredentials=true`, `useMe`
+      + `useLogout` hooks, `AuthHeader` (Kakao login link / avatar +
+      reputation + logout) wired into MapView.
+- [x] **2.3.2** Submit flow — 5-step `SubmitSheet` (type → GPS →
+      photo → attrs → review). Client-side image compression to
+      ~1600px JPEG q80, presign + R2 PUT, then `POST /pois`. Maps
+      401/422/429/409 to friendly Korean messages. Floating "+" FAB
+      visible only when logged in.
+- [x] **2.3.3** Unverified marker style — yellow dashed ring + "?"
+      badge on POIMarker for `verification_status === 'unverified'`.
+      Detail panel shows 미확인 / 확인됨 chip and a "여기 있어요 (확인)"
+      ConfirmButton (hidden for own submissions / verified POIs /
+      logged-out users).
+- [x] **2.3.4** Profile page `/me` — backend `/me/submissions` +
+      `/me/confirmations` (4 integration tests). Frontend page shows
+      avatar, reputation, two list sections with verification badges.
+      Bare path-based routing in App.tsx (no react-router).
+- [x] **2.3.5** Playwright e2e — extended `_fixtures.ts` with
+      mocked `/auth/me`, submit endpoints, confirm endpoint, photo
+      presign, R2 PUT, and a stubbed `navigator.geolocation`. New
+      specs: `auth.spec.ts`, `submit.spec.ts`, `confirm.spec.ts`,
+      `profile.spec.ts`.
 
-Next: **Phase 2.3** frontend, then real Kakao OAuth wiring on staging.
+## Phase 2 — DONE pending real-stack staging deploy
+
+Acceptance items still gated on infrastructure:
+- [ ] Real Kakao OAuth on staging (KAKAO_CLIENT_ID/SECRET wired).
+- [ ] Real R2 bucket + creds for the photo upload claim path.
+- [ ] Real face/plate detector swapped in for `NoopDetector`.
+- [ ] Submitting from a real mobile device with GPS + camera.
+
+Next: pull a real Mapo-gu CSV (Phase 1.2 follow-up), wire Kakao
+keys + R2 on staging, then move to **Phase 3** (status reports —
+the differentiator).
