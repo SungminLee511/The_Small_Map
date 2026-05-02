@@ -1,10 +1,23 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import pois
+from app.jobs.importer_scheduler import start_scheduler, stop_scheduler
+from app.routers import admin, pois
 
-app = FastAPI(title="The Small Map", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler(settings)
+    try:
+        yield
+    finally:
+        stop_scheduler()
+
+
+app = FastAPI(title="The Small Map", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -15,6 +28,7 @@ app.add_middleware(
 )
 
 app.include_router(pois.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")

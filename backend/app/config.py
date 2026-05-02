@@ -20,7 +20,13 @@ class Settings(BaseSettings):
     jwt_audience: str = "smallmap-web"
     jwt_ttl_seconds: int = 2592000
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    # Importer scheduling (Phase 1.3.6)
+    admin_token: str = ""  # required to call /admin/run-importer; empty = disabled
+    importer_scheduler_enabled: bool = False
+    importer_csv_dir: str = ""  # if set, importers default to <dir>/<source_id>.csv
+    kakao_rest_api_key: str = ""  # for smoking-areas geocoding
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()
