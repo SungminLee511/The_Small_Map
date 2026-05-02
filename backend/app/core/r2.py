@@ -74,6 +74,33 @@ def head_object(settings, key: str) -> dict | None:
         raise
 
 
+def get_object_prefix(settings, key: str, *, n_bytes: int = 16) -> bytes | None:
+    """Return the first ``n_bytes`` of an object via Range GET.
+
+    Used by the photo-claim path to magic-byte-sniff uploaded bytes
+    independently of the client-claimed Content-Type. Returns ``None`` if
+    the object is missing.
+    """
+    import botocore.exceptions
+
+    client = _client(settings)
+    try:
+        resp = client.get_object(
+            Bucket=settings.r2_bucket,
+            Key=key,
+            Range=f"bytes=0-{max(0, n_bytes - 1)}",
+        )
+    except botocore.exceptions.ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code in ("404", "NoSuchKey", "NotFound"):
+            return None
+        raise
+    body = resp.get("Body")
+    if body is None:
+        return b""
+    return body.read()
+
+
 def copy_object(settings, *, src_key: str, dest_key: str) -> None:
     client = _client(settings)
     client.copy_object(

@@ -915,6 +915,208 @@ Recompute nightly to fix drift.
 
 -----
 
+# 5b. Future Work — Detailed Punch List
+
+The code through Phase 5 is feature-complete. Everything below is
+**deploy + real-data + QA**, not feature work. Items are grouped by
+the artefact they need (data, infra, hardware, paperwork) so they can
+be parallelised.
+
+## 5b.1 Real public data (unblocks Phase 1.5)
+
+Phase 1.2 was deliberately skipped — toilet/smoking-area importers
+ship with **guessed** Korean column names. Validate against real
+data **before** seeding staging.
+
+- [ ] **Pull Mapo-gu public-toilet CSV** from `data.go.kr`
+      ("전국공중화장실표준데이터"). Save under `backend/scripts/data/`
+      (gitignored).
+- [ ] Run `scripts/run_importers.py --source seoul.public_toilets
+      --csv <path> --dry-run` and read `ImportReport.errors`.
+- [ ] Patch `backend/app/importers/seoul_public_toilets.py`
+      `COL_*` constants until 0 errors. Add a regression fixture
+      under `tests/fixtures/seoul_public_toilets/` and a unit test.
+- [ ] Repeat for `seoul.smoking_areas` (data.seoul.go.kr,
+      "흡연구역"). Address-only data → wire `KAKAO_REST_API_KEY` for
+      geocoding; cap rate to ~10 req/s.
+- [ ] **Verify reprojection:** Korean datasets often ship as
+      EPSG:5174 / EPSG:5179. Spot-check a known landmark in QGIS
+      after import.
+- [ ] **Verify encoding:** detect CP949/EUC-KR vs UTF-8 in the
+      fetcher; log the chosen codec.
+- [ ] Seed staging DB and confirm **≥100 POIs render** with
+      clustering and detail panel (Phase 1.5 acceptance).
+
+## 5b.2 Staging deploy
+
+Pick **one** of: Fly.io, Railway, or Render. The plan assumes Fly.
+
+### 5b.2.1 Postgres + PostGIS
+- [ ] Provision PG16 (Fly: `flyio/postgres-flex`).
+- [ ] `CREATE EXTENSION postgis` post-install.
+- [ ] Run `alembic upgrade head` from a one-off worker.
+- [ ] **Enable daily snapshots** (Phase 5.3) — Fly Volumes
+      snapshot retention ≥ 7 days.
+- [ ] Document the restore procedure in `RUNBOOK.md`.
+
+### 5b.2.2 Backend service
+- [ ] Build & push backend Docker image.
+- [ ] Set every env var in `.env.example` to a real value:
+      `DATABASE_URL`, `APP_ENV=production`, `APP_SECRET_KEY`
+      (32 random bytes), `JWT_SECRET` (32 random bytes),
+      `KAKAO_CLIENT_ID/SECRET`, `KAKAO_REDIRECT_URI` (must match
+      Kakao console exactly), `R2_*`, `ADMIN_TOKEN`,
+      `IMPORTER_SCHEDULER_ENABLED=true`, `auth_cookie_secure=true`,
+      `auth_cookie_samesite=none` (cross-domain), `FRONTEND_BASE_URL`.
+- [ ] Hit `/api/v1/health` and `/api/v1/health/db` from outside.
+- [ ] Confirm `enforce_at_startup` does **not** raise (logs are
+      clean of `startup_security_issue`).
+
+### 5b.2.3 Frontend hosting
+- [ ] Cloudflare Pages or Vercel.
+- [ ] Build with `VITE_API_BASE_URL=https://api.<host>/api/v1` and
+      `VITE_KAKAO_MAPS_JS_KEY` from Kakao console.
+- [ ] Add the Pages domain to Kakao console allowed domains
+      list and to the backend CORS allowlist.
+
+### 5b.2.4 Object storage (R2)
+- [ ] Create `smallmap-photos` bucket.
+- [ ] Generate scoped API token (read+write on that bucket only).
+- [ ] **Enable bucket versioning** (Phase 5.3).
+- [ ] Add CORS rule allowing PUT from the frontend origin only.
+- [ ] Public read: route `R2_PUBLIC_BASE_URL` through a Cloudflare
+      custom hostname (don't expose the raw `*.r2.cloudflarestorage.com`).
+
+### 5b.2.5 Auth / Kakao OAuth
+- [ ] Register the production Kakao app (separate from dev).
+- [ ] Add `https://<frontend>/auth/kakao/callback` to redirect URIs
+      **byte-for-byte** matching `KAKAO_REDIRECT_URI`.
+- [ ] Smoke-test the full flow with a personal Kakao account.
+
+### 5b.2.6 PIPA blur — production detector
+- [ ] Replace `NoopDetector` in `app/jobs/photo_blur_task.py` with a
+      real face/plate detector (RetinaFace or YOLOv8-face/plate).
+- [ ] Wrap in a tiny wrapper module so the dependency is optional
+      (skip-on-missing-import keeps unit tests green).
+- [ ] Run on the GPU-less staging box and benchmark median latency
+      per photo. If > 5 s, move blur to a worker queue (arq + Redis).
+- [ ] Add a regression test: a known face image goes in, the
+      output's pixel hash differs at the face bbox.
+
+### 5b.2.7 CI / CD
+- [ ] GitHub Actions: on tag push, build → run integration tests
+      against a `postgis/postgis:16-3.4` service container →
+      deploy backend + frontend.
+- [ ] Required status checks on `main`: ruff + black + mypy + pytest +
+      eslint + vitest + tsc + Playwright.
+
+## 5b.3 Real-stack QA (mobile, in-person)
+
+These can only be exercised after 5b.2 is up.
+
+- [ ] **Login flow** — Kakao login on mobile Safari + Chrome Android.
+- [ ] **Submit POI** — from a phone, real GPS, real camera. Try with
+      bad accuracy (>50m) and verify the submit button stays disabled.
+- [ ] **GPS spoof test** — devtools location 200m+ off; backend
+      returns 422 with the distance.
+- [ ] **Duplicate prompt** — submit a 2nd toilet within 10m of an
+      existing one; verify the "is this the same?" sheet.
+- [ ] **Verification threshold** — 3 different test accounts confirm
+      one POI; status flips `unverified → verified`; submitter rep +1
+      per confirmation.
+- [ ] **Trusted auto-verify** — manually bump a test user to
+      reputation ≥ 50; their next submission is born verified.
+- [ ] **Banned user** — flip `is_banned=True`; submit returns 403.
+- [ ] **Stale prompt** — backdate a POI's `last_verified_at` to
+      181 days ago; detail panel shows the yellow re-verify banner.
+- [ ] **Removal proposals** — three accounts propose-removal on the
+      same POI; POI auto-soft-deletes; admin can undo.
+- [ ] **Reports cycle** — submit `out_of_order`; red badge appears
+      within 5 s; another user "저도 봤어요"; reporter resolves;
+      badge gone within 5 s.
+- [ ] **Auto-expiry** — fast-forward `expires_at` past now; the
+      15-min cron flips status; reporter gets a `report_expired`
+      notification.
+- [ ] **Rate limits** — submit 11 POIs in 24h → 429 with
+      `Retry-After`; same for 6th report and 51st confirmation.
+- [ ] **i18n toggle** — switch KO ↔ EN, refresh; choice survives.
+- [ ] **Photo PIPA** — upload a face photo; before blur completes
+      the marker shows a placeholder; after, the face is blurred.
+- [ ] **Photo upload abuse** — try uploading a `.html` renamed to
+      `.jpg` — rejected by magic-byte sniff (Phase 5.4).
+- [ ] **Notifications bell** — unread count updates within 60s;
+      "모두 읽음" clears; click navigates to the POI.
+
+## 5b.4 Performance + accessibility
+
+- [ ] **Load test** — `k6` script: 100 concurrent users panning
+      the Mapo-gu bbox + 5 % submitting reports + 5 % opening
+      detail panels. Target: p95 latency < 500 ms,
+      0 % 5xx, no DB connection-pool exhaustion.
+- [ ] **Lighthouse mobile** — performance ≥ 80, accessibility ≥ 80,
+      SEO ≥ 90, PWA optional. Fix LCP / CLS hotspots.
+- [ ] **Bundle audit** — `vite build --report`; if > 300 KB
+      gzipped, code-split the submit/profile/auth flows.
+- [ ] **Map perf** — verify supercluster handles 5 000 POIs without
+      jank by seeding a stress dataset.
+
+## 5b.5 Observability (Phase 5.2 polish)
+
+- [ ] Wire backend JSON logs to a log shipper (Fly: `fly logs`
+      → Loki / Datadog / Better Stack).
+- [ ] Wire frontend `ErrorBoundary` to Sentry (or self-hosted
+      `glitchtip`). Sample rate 10 %.
+- [ ] Alerts on:
+      - any 5xx > 1 % over 5 min,
+      - `/health/db` failing 2 consecutive probes,
+      - importer scheduler last-run > 35 days ago,
+      - photo-blur queue depth > 50.
+- [ ] Optional: Prometheus `/metrics` endpoint via
+      `prometheus-fastapi-instrumentator`.
+
+## 5b.6 Backups (Phase 5.3 polish)
+
+- [ ] Daily PG snapshot retained 7 d, weekly retained 4 w.
+- [ ] R2 bucket versioning + 30 d lifecycle to delete tombstones.
+- [ ] **Quarterly restore drill** — restore yesterday's snapshot
+      to a scratch DB and run `pytest tests/integration/` against it.
+      Document the result in `RUNBOOK.md`.
+
+## 5b.7 Legal + paperwork (blocks public launch)
+
+- [ ] Privacy Policy reviewed by a Korean lawyer (PIPA).
+- [ ] Terms of Use reviewed.
+- [ ] Public-data attribution (KOGL Type 1) verified per source.
+- [ ] Contact email + takedown form in About page works
+      end-to-end.
+- [ ] Decide a data-retention policy for `reputation_events`
+      and deleted POIs; encode it in a nightly job.
+- [ ] Cookie consent banner if/when analytics are added.
+
+## 5b.8 Documentation
+
+- [ ] `README.md` setup verified on a clean machine (no Docker
+      shortcuts that only work on the author's box).
+- [ ] `RUNBOOK.md` (new): deploy, rollback, restore, rotate
+      secrets, run an importer manually.
+- [ ] `SECURITY.md`: how to report a vulnerability + the
+      response SLA.
+- [ ] OpenAPI schema dump committed (`openapi.json`) so frontend
+      type drift can be diffed.
+
+## 5b.9 Launch sequencing
+
+1. **Soft-launch (≥ 2 weeks):** invite 5–10 friends. Watch logs.
+2. **Friends-of-friends:** open registration, keep a `/admin/pois`
+   eyeball pass daily.
+3. **Public launch:** post in r/korea, /r/seoul, Disquiet,
+   Twitter. Be ready to scale Postgres CPU.
+4. **Post-launch retro at 30 days:** review reports/POIs ratio,
+   spam-rate-limit hits, p95 latency, top-2 user complaints. Plan
+   v2 backlog from there.
+
+-----
+
 # 6. Glossary
 
 - **POI (Point of Interest):** a physical thing on the map (a toilet, a bench)

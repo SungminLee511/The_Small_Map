@@ -219,6 +219,16 @@ async def submit_poi(
                     status_code=400, detail="photo too large or empty"
                 )
 
+            # Magic-byte sniff: don't trust the client-declared
+            # Content-Type. ``get_object_prefix`` returns None if the key
+            # vanished between HEAD and GET.
+            prefix = r2.get_object_prefix(settings, upload.object_key, n_bytes=16)
+            if not prefix or not r2.looks_like_image(prefix):
+                raise HTTPException(
+                    status_code=400,
+                    detail="photo bytes are not a recognized image",
+                )
+
             new_key = canonical_object_key(upload.id, upload.content_type)
             r2.copy_object(
                 settings, src_key=upload.object_key, dest_key=new_key

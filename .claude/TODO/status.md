@@ -285,3 +285,135 @@ Next: pull a real Mapo-gu CSV (Phase 1.2 follow-up), wire Kakao
 keys + R2 on staging, then move to **Phase 5** (cross-cutting
 concerns reference — logging, observability, backups, security
 checklist) and pre-launch polish.
+
+## Phase 5 (Cross-cutting concerns) — code-actionable subset DONE
+
+### 5.1 Structured logging
+- [x] `app/core/logging.py` — stdlib JSON formatter, redacts known
+      secret-shaped keys (token / password / cookie / authorization /
+      jwt / kakao_access_token / secret), nested-dict aware, default=str
+      fallback for unserializable extras. `setup_logging()` is
+      idempotent and tames noisy library loggers.
+- [x] `app/core/request_logging.py` — `RequestLoggingMiddleware`
+      logs one structured line per request (method, path, status,
+      latency_ms, user_id, client_ip, request_id). Sets/propagates
+      `X-Request-Id`. Health probes are silent on success.
+- [x] Wired into `main.py` lifespan + middleware stack.
+- [x] 10 unit tests (`test_logging.py`, `test_request_logging.py`).
+
+### 5.2 Observability
+- [x] `GET /api/v1/health/db` — runs `SELECT 1` through a fresh
+      session; returns 503 with truncated error body on failure.
+
+### 5.4 Security hardening
+- [x] `app/core/security_headers.py` — `SecurityHeadersMiddleware`
+      sets `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
+      `Permissions-Policy` (camera/mic locked, geolocation=self),
+      conservative CSP (`default-src 'none'; frame-ancestors 'none'`),
+      and HSTS in production only.
+- [x] `app/core/security_startup.py` — boot-time check.
+      Production refuses to start with placeholder
+      `jwt_secret` / `app_secret_key` or `auth_cookie_secure=False`;
+      dev only warns. Wired into the lifespan.
+- [x] `r2.get_object_prefix` — Range-GET for the first 16 bytes;
+      photo claim path now magic-byte-sniffs the uploaded file
+      (`looks_like_image` was previously dead code) and rejects with
+      400 on a mismatch.
+- [x] 13 unit tests (`test_security_headers.py`,
+      `test_security_startup.py`, `test_r2_magic_byte.py`).
+
+**150/150 unit tests pass locally** (was 127, +23 new).
+
+### 5.3 / 5.5 — deferred to staging
+- [ ] Postgres daily snapshots + R2 versioning (hosting dashboard).
+- [ ] Real backup-restore drill.
+- [ ] Load test (100 concurrent map browsers).
+- [ ] Mobile Safari + Chrome Android in-person QA.
+- [ ] Lighthouse mobile > 80 measured against staging.
+
+## Phase 5 — DONE in code
+
+The code base is feature-complete through Phase 5. **Everything below
+is deploy + real-data + QA, not feature work.** Full punch list lives
+in `implementation_plan.md` § 5b. Headlines:
+
+### Real data (unblocks Phase 1.5 acceptance)
+- [ ] Pull Mapo-gu public-toilet CSV (data.go.kr); patch
+      `seoul_public_toilets.COL_*` until `ImportReport.errors == 0`.
+- [ ] Same for `seoul_smoking_areas` + Kakao Local geocoder.
+- [ ] Spot-check reprojection (EPSG:5174/5179 → 4326) and CP949 decode.
+- [ ] Seed staging; confirm ≥100 POIs render.
+
+### Staging deploy (Fly.io baseline)
+- [ ] PG16 + PostGIS, `alembic upgrade head`, daily snapshots.
+- [ ] Backend container with real `JWT_SECRET`, `APP_SECRET_KEY`,
+      `KAKAO_*`, `R2_*`, `ADMIN_TOKEN`; `APP_ENV=production`,
+      `auth_cookie_secure=true`, `samesite=none`.
+- [ ] Verify `enforce_at_startup` boots clean (no
+      `startup_security_issue` warnings).
+- [ ] Frontend on Cloudflare Pages with `VITE_API_BASE_URL` and
+      `VITE_KAKAO_MAPS_JS_KEY`.
+- [ ] R2 bucket + scoped token + versioning + custom hostname.
+- [ ] Production Kakao OAuth app; redirect URI byte-exact match.
+- [ ] Swap `NoopDetector` → real RetinaFace / YOLO face+plate
+      detector; add regression test (face bbox pixel hash differs).
+- [ ] CI: integration tests run against PostGIS service container;
+      tag-push deploys.
+
+### Real-stack QA (mobile, in person)
+- [ ] Kakao login on mobile Safari + Chrome Android.
+- [ ] Submit POI from a real phone (camera + GPS).
+- [ ] GPS spoof 200m off → 422.
+- [ ] Duplicate-within-10m prompt.
+- [ ] Verification threshold across 3 accounts.
+- [ ] Trusted auto-verify (rep ≥ 50).
+- [ ] Banned-user submit → 403.
+- [ ] Stale prompt at 181 days.
+- [ ] Removal-proposal threshold trip + admin undo.
+- [ ] Report → badge → resolve cycle, < 5 s end-to-end.
+- [ ] Auto-expiry cron + `report_expired` notification.
+- [ ] Rate limits (11th POI/day, 6th report, 51st confirm) → 429.
+- [ ] KO ↔ EN i18n persistence.
+- [ ] PIPA blur applied before photo public.
+- [ ] Magic-byte rejection of non-image upload.
+- [ ] Notifications bell unread count + click navigation.
+
+### Performance + a11y
+- [ ] k6 load test: 100 concurrent, p95 < 500 ms, 0 % 5xx.
+- [ ] Lighthouse mobile: perf ≥ 80, a11y ≥ 80, SEO ≥ 90.
+- [ ] Bundle audit; code-split if > 300 KB gzipped.
+- [ ] Supercluster perf at 5 000 POIs.
+
+### Observability
+- [ ] Backend JSON logs → log shipper (Loki / Datadog / Better Stack).
+- [ ] Frontend `ErrorBoundary` → Sentry (10 % sample).
+- [ ] Alerts: 5xx > 1 %/5min, `/health/db` 2× fail, importer
+      scheduler stale > 35 d, blur queue > 50.
+- [ ] Optional Prometheus `/metrics`.
+
+### Backups (5.3 polish)
+- [ ] PG: 7d daily + 4w weekly retention.
+- [ ] R2: versioning + 30d tombstone lifecycle.
+- [ ] Quarterly restore drill — restore + run integration suite.
+
+### Legal + paperwork
+- [ ] Privacy Policy lawyer review (PIPA).
+- [ ] Terms of Use lawyer review.
+- [ ] KOGL Type 1 attribution per source verified.
+- [ ] Contact + takedown form works end-to-end.
+- [ ] Data-retention policy for `reputation_events` and deleted POIs.
+- [ ] Cookie consent banner if analytics added.
+
+### Documentation
+- [ ] README setup verified on a clean machine.
+- [ ] `RUNBOOK.md` (new): deploy / rollback / restore / rotate /
+      run-importer-manually.
+- [ ] `SECURITY.md` with vuln-report channel + SLA.
+- [ ] Commit `openapi.json` snapshot.
+
+### Launch sequencing
+- [ ] Soft-launch ≥ 2 weeks (5–10 friends).
+- [ ] Friends-of-friends with daily admin eyeball pass.
+- [ ] Public launch posts (r/korea, r/seoul, Disquiet, Twitter).
+- [ ] 30-day retro: reports/POIs ratio, rate-limit hits, p95
+      latency, top-2 complaints → v2 backlog.
