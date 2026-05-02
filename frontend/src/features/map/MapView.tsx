@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchPOIs } from '@/api/pois'
 import { AuthHeader } from '@/features/auth/AuthHeader'
 import { useMe } from '@/features/auth/useMe'
+import { Footer } from '@/features/static/Footer'
 import { SubmitSheet } from '@/features/submit/SubmitSheet'
 import { Plus } from 'lucide-react'
 import { FilterBar } from './FilterBar'
@@ -123,6 +124,7 @@ export function MapView() {
           Too many results. Zoom in for more detail.
         </div>
       )}
+      <Footer />
       <POIDetailPanel
         poiId={selectedPoiId}
         onClose={() => setSelectedPoiId(null)}
