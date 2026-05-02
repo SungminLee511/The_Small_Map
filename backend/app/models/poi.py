@@ -23,6 +23,11 @@ class POIStatus(str, enum.Enum):
     removed = "removed"
 
 
+class POIVerificationStatus(str, enum.Enum):
+    unverified = "unverified"
+    verified = "verified"
+
+
 class POI(Base):
     __tablename__ = "pois"
 
@@ -50,6 +55,16 @@ class POI(Base):
         nullable=False,
         default=POIStatus.active,
     )
+    verification_status: Mapped[str] = mapped_column(
+        Enum(
+            POIVerificationStatus,
+            name="poi_verification_status_enum",
+            create_constraint=True,
+        ),
+        nullable=False,
+        default=POIVerificationStatus.verified,
+        server_default=text("'verified'"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -72,4 +87,5 @@ class POI(Base):
             unique=True,
             postgresql_where=text("external_id IS NOT NULL"),
         ),
+        Index("ix_pois_verification_status", "verification_status"),
     )

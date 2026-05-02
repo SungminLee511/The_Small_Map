@@ -3,9 +3,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
-from app.models.poi import POIType, POIStatus
+from app.models.poi import POIType, POIStatus, POIVerificationStatus
 
 
 class LatLng(BaseModel):
@@ -42,6 +42,7 @@ class POIRead(BaseModel):
     attributes: dict | None = None
     source: str
     status: POIStatus
+    verification_status: POIVerificationStatus = POIVerificationStatus.verified
     created_at: datetime
     updated_at: datetime
 
@@ -59,3 +60,31 @@ class POIDetail(POIRead):
 class POIListResponse(BaseModel):
     items: list[POIRead]
     truncated: bool
+
+
+# --- Phase 2.2.4 submission ------------------------------------------------
+
+
+class SubmittedGPS(BaseModel):
+    lat: float
+    lng: float
+    accuracy_m: float = Field(..., ge=0)
+
+
+class POICreate(BaseModel):
+    """User-submitted POI (POST /api/v1/pois)."""
+
+    poi_type: POIType
+    location: LatLng
+    name: str | None = Field(None, max_length=255)
+    attributes: dict | None = None
+    submitted_gps: SubmittedGPS
+    photo_upload_id: uuid.UUID | None = None
+
+
+class POICreateDuplicateResponse(BaseModel):
+    """Returned when a POI of the same type already exists nearby."""
+
+    duplicate: bool = True
+    existing_poi_id: uuid.UUID
+    distance_m: float

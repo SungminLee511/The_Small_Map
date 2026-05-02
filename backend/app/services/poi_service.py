@@ -1,15 +1,41 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 
-from geoalchemy2.functions import ST_Intersects, ST_MakeEnvelope, ST_X, ST_Y
+from geoalchemy2 import WKTElement
+from geoalchemy2.functions import (
+    ST_Distance,
+    ST_DWithin,
+    ST_Intersects,
+    ST_MakeEnvelope,
+    ST_X,
+    ST_Y,
+)
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.poi import POI, POIStatus, POIType
+from app.core.geo import haversine_m
+from app.models.poi import POI, POIStatus, POIType, POIVerificationStatus
 from app.schemas.poi import BBox, LatLng, POIDetail, POIRead
 
 POI_LIMIT = 500
+DUPLICATE_RADIUS_M = 10
+SUBMISSION_GPS_TOLERANCE_M = 50
+
+
+@dataclass
+class DuplicateNearby:
+    poi_id: uuid.UUID
+    distance_m: float
+
+
+class SubmissionGPSTooFarError(Exception):
+    """Raised when ``submitted_gps`` is more than 50m from claimed location."""
+
+    def __init__(self, distance_m: float):
+        super().__init__(f"submitted_gps is {distance_m:.1f}m from claimed location")
+        self.distance_m = distance_m
 
 
 async def list_pois_in_bbox(
@@ -29,6 +55,7 @@ async def list_pois_in_bbox(
             POI.attributes,
             POI.source,
             POI.status,
+            POI.verification_status,
             POI.created_at,
             POI.updated_at,
             ST_Y(func.geometry(POI.location)).label("lat"),
@@ -59,12 +86,81 @@ async def list_pois_in_bbox(
             attributes=row.attributes,
             source=row.source,
             status=row.status,
+            verification_status=row.verification_status,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
         for row in rows
     ]
     return items, truncated
+
+
+async def find_nearby_duplicate(
+    session: AsyncSession,
+    *,
+    lat: float,
+    lng: float,
+    poi_type: POIType,
+    radius_m: float = DUPLICATE_RADIUS_M,
+) -> DuplicateNearby | None:
+    """Return a same-type active POI within ``radius_m``, if any (closest)."""
+    point = WKTElement(f"POINT({lng} {lat})", srid=4326)
+    stmt = (
+        select(
+            POI.id,
+            ST_Distance(POI.location, point).label("dist"),
+        )
+        .where(
+            POI.poi_type == poi_type,
+            POI.status == POIStatus.active,
+            ST_DWithin(POI.location, point, radius_m),
+        )
+        .order_by("dist")
+        .limit(1)
+    )
+    row = (await session.execute(stmt)).first()
+    if row is None:
+        return None
+    return DuplicateNearby(poi_id=row.id, distance_m=float(row.dist))
+
+
+async def create_user_submitted_poi(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    poi_type: POIType,
+    lat: float,
+    lng: float,
+    submitted_lat: float,
+    submitted_lng: float,
+    name: str | None,
+    attributes: dict | None,
+) -> POI:
+    """Create a new user-submitted POI. Caller must commit.
+
+    Raises ``SubmissionGPSTooFarError`` if the submitted GPS is more than
+    50m from the claimed location. Caller is responsible for the duplicate
+    check via ``find_nearby_duplicate`` so it can return a friendly response
+    to the client.
+    """
+    gps_offset = haversine_m(lat, lng, submitted_lat, submitted_lng)
+    if gps_offset > SUBMISSION_GPS_TOLERANCE_M:
+        raise SubmissionGPSTooFarError(gps_offset)
+
+    poi = POI(
+        id=uuid.uuid4(),
+        poi_type=poi_type,
+        location=WKTElement(f"POINT({lng} {lat})", srid=4326),
+        name=name,
+        attributes=attributes or {},
+        source=f"user:{user_id}",
+        status=POIStatus.active,
+        verification_status=POIVerificationStatus.unverified,
+        verification_count=1,  # the submitter counts as 1
+    )
+    session.add(poi)
+    await session.flush()
+    return poi
 
 
 async def get_poi_by_id(
@@ -79,6 +175,7 @@ async def get_poi_by_id(
             POI.attributes,
             POI.source,
             POI.status,
+            POI.verification_status,
             POI.external_id,
             POI.last_verified_at,
             POI.verification_count,
@@ -100,6 +197,7 @@ async def get_poi_by_id(
         attributes=row.attributes,
         source=row.source,
         status=row.status,
+        verification_status=row.verification_status,
         external_id=row.external_id,
         last_verified_at=row.last_verified_at,
         verification_count=row.verification_count,

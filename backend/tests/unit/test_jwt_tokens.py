@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 import uuid
 
 from app.core.jwt_tokens import (
@@ -33,16 +32,16 @@ def test_oauth_state_random():
 def test_decode_rejects_tampered_token():
     uid = uuid.uuid4()
     tok = issue_session_token(uid)
-    # Flip the last char of the signature
-    tampered = tok[:-1] + ("A" if tok[-1] != "A" else "B")
+    # Replace the signature segment with a clearly bogus one.
+    head, payload, _sig = tok.rsplit(".", 2)
+    tampered = f"{head}.{payload}.AAAA"
     assert decode_session_token(tampered) is None
 
 
 def test_decode_rejects_expired_token(monkeypatch):
+    """Issue a token whose exp is already in the past (negative TTL)."""
     from app.core import jwt_tokens
 
-    # Force a 1-second token then sleep past it
-    monkeypatch.setattr(jwt_tokens.settings, "jwt_ttl_seconds", 1)
+    monkeypatch.setattr(jwt_tokens.settings, "jwt_ttl_seconds", -10)
     tok = issue_session_token(uuid.uuid4())
-    time.sleep(1.5)
     assert decode_session_token(tok) is None
