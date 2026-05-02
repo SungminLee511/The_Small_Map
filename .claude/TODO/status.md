@@ -338,10 +338,25 @@ is deploy + real-data + QA, not feature work.** Full punch list lives
 in `implementation_plan.md` § 5b. Headlines:
 
 ### Real data (unblocks Phase 1.5 acceptance)
-- [ ] Pull Mapo-gu public-toilet CSV (data.go.kr); patch
-      `seoul_public_toilets.COL_*` until `ImportReport.errors == 0`.
-- [ ] Same for `seoul_smoking_areas` + Kakao Local geocoder.
-- [ ] Spot-check reprojection (EPSG:5174/5179 → 4326) and CP949 decode.
+- [x] **Toilet schema verified** against the 2024-02-18 standard-data
+      snapshot (mirror at github.com/NiSeullent/neomu-geuphae,
+      6 089 rows, 32 cols, 194 in Mapo-gu). Importer rewritten:
+      - synthetic external_id `sha1(addr | name)` (no stable PK exists),
+      - gender inferred from per-fixture stall counts,
+      - accessibility from sum of disabled-stall counts > 0,
+      - XLSX support added (`--xlsx`),
+      - CSV decoder falls back UTF-8 / UTF-8-sig if CP949 fails,
+      - injectable geocoder fallback when WGS84 columns are blank,
+      - SOURCES.md updated with the verified schema.
+- [x] **Mapo-gu coordinate gap surfaced**: 0 of 194 Mapo rows have
+      WGS84 coords (subway-station entries), so a Kakao Local geocoder
+      is now mandatory for that gu. ~50 % nationwide loss without one.
+- [ ] Pull a fresh Mapo-gu CSV from `data.go.kr` (login-gated portal)
+      and run the importer with a real `KAKAO_REST_API_KEY` to confirm
+      the geocode fallback recovers ≥ 100 of the 194 rows.
+- [ ] Same Phase 1.2 verification pass for `seoul_smoking_areas`
+      (still using guessed columns — no real CSV pulled yet).
+- [ ] Spot-check reprojection (EPSG:5174/5179 → 4326).
 - [ ] Seed staging; confirm ≥100 POIs render.
 
 ### Staging deploy (Fly.io baseline)

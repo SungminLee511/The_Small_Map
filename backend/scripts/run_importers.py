@@ -37,10 +37,16 @@ ImporterFactory = Callable[[argparse.Namespace], BaseImporter]
 
 
 def _make_toilets(args: argparse.Namespace) -> BaseImporter:
+    geocoder = None
+    if args.kakao_rest_key:
+        async def geocoder(addr: str):  # noqa: E306
+            return await kakao_geocode(addr, rest_api_key=args.kakao_rest_key)
     return SeoulPublicToiletsImporter(
         csv_path=args.csv,
+        xlsx_path=args.xlsx,
         api_url=args.api_url,
         encoding=args.encoding,
+        geocoder=geocoder,
     )
 
 
@@ -96,6 +102,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     g.add_argument("--all", action="store_true", help="Run every importer")
     p.add_argument("--csv", help="Local CSV path (passed to importers that accept it)")
+    p.add_argument(
+        "--xlsx",
+        help="Local XLSX path (toilet importer only — standard data ships as both)",
+    )
     p.add_argument("--api-url", help="HTTP API URL (passed to importers that accept it)")
     p.add_argument("--encoding", default="cp949", help="CSV encoding (default cp949)")
     p.add_argument(

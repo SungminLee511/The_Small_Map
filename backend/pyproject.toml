@@ -24,6 +24,10 @@ dependencies = [
     "apscheduler>=3.10.0",
     "boto3>=1.34.0",
     "pillow>=10.0.0",
+    # Used by `seoul_public_toilets` to ingest the standard-data XLSX.
+    # Lazy-imported in the importer so test environments without it
+    # still pass the rest of the suite.
+    "openpyxl>=3.1.0",
 ]
 
 [project.optional-dependencies]

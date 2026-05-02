@@ -39,3 +39,10 @@ def test_parse_args_rejects_unknown_source():
 def test_parse_args_default_encoding_cp949():
     args = parse_args(["--all"])
     assert args.encoding == "cp949"
+
+
+def test_parse_args_xlsx_flag():
+    args = parse_args(
+        ["--source", "seoul.public_toilets", "--xlsx", "/tmp/toilets.xlsx"]
+    )
+    assert args.xlsx == "/tmp/toilets.xlsx"
