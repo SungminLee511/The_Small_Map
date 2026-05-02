@@ -122,6 +122,22 @@ def start_scheduler(settings: "Settings") -> None:
         replace_existing=True,
     )
 
+    # Every-15-min report auto-expiry (Phase 3.3.2)
+    from app.jobs.report_expiry import run_report_expiry_tick
+
+    async def _report_expiry_tick() -> None:
+        try:
+            await run_report_expiry_tick()
+        except Exception:  # noqa: BLE001
+            logger.exception("report_expiry tick crashed")
+
+    sched.add_job(
+        _report_expiry_tick,
+        trigger=CronTrigger(minute="*/15"),
+        id="report_expiry",
+        replace_existing=True,
+    )
+
     sched.start()
     _scheduler = sched
     logger.info("Importer scheduler started with %d jobs", len(sched.get_jobs()))
