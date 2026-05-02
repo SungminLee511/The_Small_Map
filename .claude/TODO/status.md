@@ -252,13 +252,36 @@ Acceptance items still gated on infrastructure + manual QA:
       `test_staleness_endpoint.py`). **127/127 unit tests pass
       locally.**
 
-### 4.3 Frontend — NOT STARTED
-- [ ] 4.3.1 Stale POI prompts in detail panel
-- [ ] 4.3.2 Profile page polish (rep history graph + badges)
-- [ ] 4.3.3 i18n (Korean + English)
-- [ ] 4.3.4 About / Privacy / Terms static pages
-- [ ] 4.3.5 Polish (skeletons, empty states, error boundary,
-      mobile-first, Lighthouse, favicon, OG, SEO)
+### 4.3 Frontend — COMPLETE
+- [x] **4.3.1** Stale prompt — `StalePrompt` yellow banner with
+      "여기 있어요" (confirm) and "더 이상 없어요" (propose-removal,
+      shows N/3 progress, flips to "삭제됨" on auto-soft-delete).
+- [x] **4.3.2** Profile polish — backend `GET /me/reputation` +
+      frontend `ReputationGraph` (dependency-free SVG line chart)
+      and `Badges` (Trusted, First Submission, Confirmer).
+- [x] **4.3.3** i18n — in-house provider (no react-i18next dep).
+      KO/EN dictionaries, navigator detection, localStorage
+      persistence, fallback chain. `LanguageToggle` in header.
+- [x] **4.3.4** About / Privacy / Terms — full KO + EN content,
+      KOGL Type 1 attribution on About, PIPA-aware privacy draft,
+      plain-language terms. Footer pinned bottom-left of map.
+- [x] **4.3.5** Polish — `ErrorBoundary` (default fallback +
+      custom-fallback prop, reset button), `Skeleton` (single +
+      multi-row), index.html with full SEO meta (Open Graph,
+      Twitter card, theme-color, viewport-fit=cover, lang=ko),
+      OG image at `/og.svg`. ProfilePage uses Skeleton. App
+      wrapped in ErrorBoundary at the top level.
+
+## Phase 4 — DONE in code
+
+Acceptance items still pending real-stack QA:
+- [ ] Banned-user submit flow exercised against a live API.
+- [ ] Trusted-user (rep>=50) auto-verify confirmed in production.
+- [ ] Stale prompt seen by a real user near a 180+ day POI.
+- [ ] Removal-proposal threshold trip observed in production.
+- [ ] Lighthouse mobile score > 80 measured against staging.
 
 Next: pull a real Mapo-gu CSV (Phase 1.2 follow-up), wire Kakao
-keys + R2 on staging, then **Phase 4.3** frontend.
+keys + R2 on staging, then move to **Phase 5** (cross-cutting
+concerns reference — logging, observability, backups, security
+checklist) and pre-launch polish.

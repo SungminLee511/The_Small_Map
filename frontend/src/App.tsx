@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { MapView } from '@/features/map/MapView'
 import { ProfilePage } from '@/features/profile/ProfilePage'
 import { AboutPage } from '@/features/static/AboutPage'
@@ -50,9 +51,11 @@ function App() {
       page = <MapView />
   }
   return (
-    <I18nProvider>
-      <QueryClientProvider client={queryClient}>{page}</QueryClientProvider>
-    </I18nProvider>
+    <ErrorBoundary>
+      <I18nProvider>
+        <QueryClientProvider client={queryClient}>{page}</QueryClientProvider>
+      </I18nProvider>
+    </ErrorBoundary>
   )
 }
 

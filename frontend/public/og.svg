@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="The Small Map">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6" />
+      <stop offset="1" stop-color="#1e3a8a" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <g transform="translate(80,180)" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#ffffff">
+    <text font-size="56" font-weight="700">The Small Map</text>
+    <text y="80" font-size="36" opacity="0.85">우리 동네의 작은 시설을 한 눈에</text>
+    <text y="140" font-size="28" opacity="0.7">화장실 · 쓰레기통 · 벤치 · 흡연구역 · 음수대</text>
+  </g>
+  <g transform="translate(880,180)" stroke="#fff" stroke-width="3" fill="none">
+    <circle cx="120" cy="80" r="50" />
+    <path d="M120 35 v90 M75 80 h90" />
+  </g>
+</svg>

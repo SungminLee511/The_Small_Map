@@ -8,6 +8,7 @@ import {
 import { useMe } from '@/features/auth/useMe'
 import { POI_TYPE_LABELS } from '@/types/poi'
 import { TypeIcon } from '@/features/map/TypeIcon'
+import { Skeleton } from '@/components/Skeleton'
 import type { POIDetail } from '@/types/poi'
 import { Badges } from './Badges'
 import { ReputationGraph } from './ReputationGraph'
@@ -146,7 +147,14 @@ function Section({
   return (
     <section className="mt-8" data-testid={testId}>
       <h2 className="text-lg font-semibold mb-3">{title}</h2>
-      {loading && <p className="text-gray-500 text-sm">로딩 중…</p>}
+      {loading && (
+        <Skeleton
+          height={56}
+          rows={3}
+          className="w-full"
+          testId={`${testId}-skeleton`}
+        />
+      )}
       {!loading && (!items || items.length === 0) && (
         <p className="text-gray-500 text-sm">{emptyText}</p>
       )}
